@@ -76,7 +76,7 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     Sua missão é transformar a notícia abaixo em um artigo sofisticado, elegante e altamente aspiracional.
 
     Título Original: {titulo_original}
-    Conteúdo Original: {conteúdo_original}
+    Conteúdo Original: {conteudo_original}
 
     Regras de Formatação:
     1. Crie um título maravilhoso em Português (estilo revista de elite).
