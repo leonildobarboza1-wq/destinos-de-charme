@@ -1,17 +1,22 @@
 import os
+import smtplib
 import urllib.request
 import xml.etree.ElementTree as ET
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from google import genai
-from google.genai import types
 
 # ---------------------------------------------------------------------------
-# CONFIGURAÇÕES DE ACESSO (O GitHub vai preencher isso em segredo depois)
+# CONFIGURAÇÕES DE ENVIO POR E-MAIL
 # ---------------------------------------------------------------------------
-BLOG_ID = "2362582861639823192"
+# Cole aqui o e-mail secreto que você gerou no painel do seu Blogger:
+EMAIL_SECRETO_BLOGGER = "COLE_AQUI_O_SEU_EMAIL_SECRETO@blogger.com"
+
+# Configurações da sua conta de e-mail que vai enviar (o e-mail secreto do robô)
+EMAIL_REMETENTE = os.environ.get("EMAIL_REMETENTE")
+SENHA_REMETENTE = os.environ.get("SENHA_REMETENTE") # Senha de App do Google
+
 API_KEY = os.environ.get("GEMINI_API_KEY")
-BLOGGER_TOKEN = os.environ.get("BLOGGER_ACCESS_TOKEN")
-
-# Fontes de turismo de luxo (Feed RSS público da Relais & Châteaux)
 FEED_URL = "https://www.relaischateaux.com/magazine/feed"
 
 def buscar_ultima_noticia():
@@ -23,19 +28,18 @@ def buscar_ultima_noticia():
             xml_data = response.read()
         
         root = ET.fromstring(xml_data)
-        item = root.find('.//item') # Pega a matéria mais recente lançada
+        item = root.find('.//item')
         
         if item is not None:
             titulo = item.find('title').text
-            link = item.find('link').text
             descricao = item.find('description').text if item.find('description') is not None else ""
-            return titulo, link, descricao
+            return titulo, descricao
     except Exception as e:
         print(f"Erro ao buscar feed: {e}")
-    return None, None, None
+    return None, None
 
 def usar_gemini_para_luxo(titulo_original, conteudo_original):
-    print("Acionando a inteligência do Gemini para tradução e refinamento...")
+    print("Acionando a inteligência do Gemini para criação do artigo...")
     client = genai.Client(api_key=API_KEY)
     
     prompt = f"""
@@ -48,9 +52,9 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     Regras de Formatação:
     1. Crie um título maravilhoso em Português (estilo revista de elite).
     2. Escreva o corpo do texto em Português de forma envolvente, destacando o design, o conforto, a gastronomia e a exclusividade do lugar. Use parágrafos limpos.
-    3. Adicione uma linha divisória elegante usando tags HTML.
+    3. Adicione uma linha divisória elegante usando tags HTML (<hr style='border: 0; height: 1px; background: #ccc; margin: 20px 0;'>).
     4. Logo abaixo da divisória, crie uma seção chamada 'ENGLISH VERSION' e coloque o mesmo artigo traduzido com extrema elegância para o Inglês.
-    5. O resultado final DEVE estar formatado em tags HTML limpas (como <p>, <strong>, etc) para o Blogger aceitar direto. Não use markdown (```html).
+    5. O resultado final DEVE estar formatado em tags HTML limpas (como <p>, <strong>, etc). Não use markdown (```html).
 
     Retorne o texto estritamente no formato:
     [TITULO_DO_POST] Seu título sofisticado aqui
@@ -63,54 +67,43 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     )
     return response.text
 
-def publicar_no_blogger(titulo_final, corpo_html):
-    print("Postando de forma automatizada no Blogger...")
-    url = f"[https://www.googleapis.com/blogger/v3/blogs/](https://www.googleapis.com/blogger/v3/blogs/){BLOG_ID}/posts/"
+def enviar_email_blogger(titulo_final, corpo_html):
+    print("Enviando artigo por e-mail para o Blogger...")
     
-    # Montando a estrutura que a API do Google exige
-    import json
-    dados_post = {
-        "kind": "blogger#post",
-        "blog": {"id": BLOG_ID},
-        "title": titulo_final,
-        "content": corpo_html
-    }
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = titulo_final
+    msg['From'] = EMAIL_REMETENTE
+    msg['To'] = EMAIL_SECRETO_BLOGGER
     
-    data = json.dumps(dados_post).encode('utf-8')
-    req = urllib.request.Request(
-        url, 
-        data=data,
-        headers={
-            'Authorization': f'Bearer {BLOGGER_TOKEN}',
-            'Content-Type': 'application/json'
-        }
-    )
+    parte_html = MIMEText(corpo_html, 'html', 'utf-8')
+    msg.attach(parte_html)
     
     try:
-        with urllib.request.urlopen(req) as res:
-            if res.status == 200 or res.status == 201:
-                print("✨ Sucesso! O Destinos de Charme tem um novo post exclusivo global!")
+        # Conectando ao servidor de e-mail do Google (SMTP)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(EMAIL_REMETENTE, SENHA_REMETENTE)
+        server.sendmail(EMAIL_REMETENTE, EMAIL_SECRETO_BLOGGER, msg.as_string())
+        server.quit()
+        print("✨ Sucesso! E-mail enviado. O Blogger publicará o post em instantes!")
     except Exception as e:
-        print(f"Erro ao publicar no Blogger: {e}")
+        print(f"Erro ao enviar e-mail: {e}")
 
-# Execução principal do Robô
 if __name__ == "__main__":
-    if not API_KEY or not BLOGGER_TOKEN:
-        print("⚠️ Chaves de acesso ausentes nas variáveis de ambiente.")
+    if not API_KEY or not EMAIL_REMETENTE or not SENHA_REMETENTE:
+        print("⚠️ Chaves ou credenciais de e-mail ausentes no GitHub Secrets.")
+    elif EMAIL_SECRETO_BLOGGER == "COLE_AQUI_O_SEU_EMAIL_SECRETO@blogger.com":
+        print("⚠️ Você esqueceu de colar o seu e-mail secreto do Blogger na linha 13 do código!")
     else:
-        orig_titulo, orig_link, orig_desc = buscar_ultima_noticia()
+        orig_titulo, orig_desc = buscar_ultima_noticia()
         if orig_titulo:
             resultado_ia = usar_gemini_para_luxo(orig_titulo, orig_desc)
-            
-            # Separando o título e o corpo gerados pelo Gemini
             try:
                 titulo_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
                 corpo_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
-                
-                # Publicando de verdade
-                publicar_no_blogger(titulo_final, corpo_final)
+                enviar_email_blogger(titulo_final, corpo_final)
             except Exception as e:
-                print("Erro ao processar resposta da IA. Tentando publicar texto completo.")
-                publicar_no_blogger("Refúgio de Charme Exclusivo", resultado_ia)
+                print("Erro ao processar resposta da IA. Enviando texto completo.")
+                enviar_email_blogger("Refúgio de Luxo Exclusivo", resultado_ia)
         else:
             print("Nenhuma novidade encontrada no momento.")
