@@ -5,9 +5,10 @@ import xml.etree.ElementTree as ET
 import requests
 from google import genai
 
-# CONFIGURAÇÕES DO PORTAL
+# CONFIGURAÇÕES DEFINITIVAS - VIA API OFICIAL
 API_KEY = os.environ.get("GEMINI_API_KEY")
-BLOG_ID = "2362582861639823192"  # Identificado do seu print do Blogger
+BLOGGER_TOKEN = os.environ.get("BLOGGER_ACCESS_TOKEN")
+BLOG_ID = "2362582861639823192" 
 
 FEED_URL = "https://www.relaischateaux.com/magazine/feed"
 
@@ -59,11 +60,10 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     )
     return response.text
 
-def publicar_no_blogger(titulo, corpo_html):
-    print("Publicando diretamente no painel do Blogger...")
+def publicar_no_blogger_oficial(titulo, corpo_html):
+    print("Publicando de forma autenticada no seu Blogger...")
     
-    # URL oficial da API pública do Blogger para inserção de posts usando a API Key
-    url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts?key={API_KEY}"
+    url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts"
     
     payload = {
         "kind": "blogger#post",
@@ -72,25 +72,25 @@ def publicar_no_blogger(titulo, corpo_html):
         "content": corpo_html
     }
     
-    headers = {'Content-Type': 'application/json'}
+    # É aqui que a mágica acontece: o Token dá a permissão de administrador ao robô
+    headers = {
+        'Authorization': f'Bearer {BLOGGER_TOKEN}',
+        'Content-Type': 'application/json'
+    }
     
     try:
         response = requests.post(url, data=json.dumps(payload), headers=headers)
-        if response.status_code == 200 or response.status_code == 201:
-            print(f"✨ SUCESSO ABSOLUTO! Artigo publicado: '{titulo}'")
+        if response.status_code in [200, 201]:
+            print(f"✨ SUCESSO REAL! Artigo publicado no ar: '{titulo}'")
         else:
-            print(f"O Google recusou o formato público (Status {response.status_code}).")
-            print("Tentando salvar em modo de rascunho seguro...")
-            # Fallback para gravação direta
-            url_draft = url + "&isDraft=true"
-            requests.post(url_draft, data=json.dumps(payload), headers=headers)
-            print("✨ Salvo como Rascunho no seu painel do Blogger!")
+            print(f"Erro na publicação. O Blogger respondeu com erro {response.status_code}")
+            print(response.text)
     except Exception as e:
-        print(f"Erro na conexão com o Blogger: {e}")
+        print(f"Erro ao conectar com o Blogger: {e}")
 
 if __name__ == "__main__":
-    if not API_KEY:
-        print("⚠️ Chave GEMINI_API_KEY ausente no GitHub Secrets.")
+    if not API_KEY or not BLOGGER_TOKEN:
+        print("⚠️ Chaves importantes (GEMINI ou BLOGGER_ACCESS_TOKEN) ausentes no GitHub.")
     else:
         orig_titulo, orig_desc = buscar_ultima_noticia()
         if orig_titulo:
@@ -98,8 +98,6 @@ if __name__ == "__main__":
             try:
                 titulo_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
                 corpo_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
-                publicar_no_blogger(titulo_final, corpo_final)
+                publicar_no_blogger_oficial(titulo_final, corpo_final)
             except Exception as e:
-                publicar_no_blogger("Joia Escondida do Turismo de Luxo", resultado_ia)
-        else:
-            print("Nenhuma novidade encontrada no feed para hoje.")
+                publicar_no_blogger_oficial("Refúgio de Luxo Internacional", resultado_ia)
