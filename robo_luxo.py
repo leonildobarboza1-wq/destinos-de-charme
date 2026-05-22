@@ -7,37 +7,40 @@ from google import genai
 
 # CONFIGURAÇÕES DA API
 API_KEY = os.environ.get("GEMINI_API_KEY")
-REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN") # Nova chave eterna
+REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
 BLOG_ID = "2362582861639823192"
 
-FEED_URL = "https://www.relaischateaux.com/magazine/feed"
+# Link atualizado com barra no final para evitar o erro 308
+FEED_URL = "https://www.relaischateaux.com/magazine/feed/"
 
 def renovar_access_token():
     print("Renovando passe de acesso do Blogger...")
     url = "https://oauth2.googleapis.com/token"
     payload = {
-        "client_id": "407408718192.apps.googleusercontent.com", # Client ID padrão do Playground
-        "client_secret": "************", # Omitido por segurança, mas gerenciado pelo Google
+        "client_id": "407408718192.apps.googleusercontent.com",
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token"
     }
-    # Como o Playground usa credenciais internas, podemos pedir o token diretamente usando o refresh_token válido
     try:
-        # Se o Playground exigir fluxo direto, usamos o cabeçalho de autenticação ou o token atualizado
-        # Vamos estruturar a requisição padrão do Google OAuth
         response = requests.post(url, data=payload)
         if response.status_code == 200:
             return response.json().get("access_token")
     except Exception as e:
         print(f"Erro ao renovar token: {e}")
-    return os.environ.get("BLOGGER_ACCESS_TOKEN") # Fallback caso a renovação falhe
+    return os.environ.get("BLOGGER_ACCESS_TOKEN")
 
 def buscar_ultima_noticia():
     print("Buscando novidades no mercado de luxo...")
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        req = urllib.request.Request(FEED_URL, headers=headers)
-        with urllib.request.urlopen(req) as response:
+        # Criamos um rastreador inteligente que aceita e segue redirecionamentos automaticamente
+        class RedirectionHandler(urllib.request.HTTPRedirectHandler):
+            def http_error_308(self, req, fp, code, msg, headers):
+                return self.http_error_301(req, fp, code, msg, headers)
+
+        opener = urllib.request.build_opener(RedirectionHandler)
+        opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+        
+        with opener.open(FEED_URL) as response:
             xml_data = response.read()
         
         root = ET.fromstring(xml_data)
@@ -81,6 +84,7 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     return response.text
 
 def publicar_no_blogger_oficial(titulo, corpo_html, token_valido):
+    print("--------------------------------------------------")
     print("Publicando de forma autenticada no seu Blogger...")
     url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts"
     
@@ -98,12 +102,12 @@ def publicar_no_blogger_oficial(titulo, corpo_html, token_valido):
     
     try:
         response = requests.post(url, data=json.dumps(payload), headers=headers)
+        print(f"RESPOSTA DO BLOGGER (STATUS): {response.status_code}")
         if response.status_code in [200, 201]:
             print(f"✨ SUCESSO REAL! Artigo publicado no ar: '{titulo}'")
         else:
-            print(f"O Blogger recusou o token antigo. Salvando log técnico...")
-            # Força a publicação de contingência para rascunho se houver qualquer barreira de escopo
-            print(f"Status do Blogger: {response.status_code}")
+            print(f"TEXTO DO ERRO: {response.text}")
+        print("--------------------------------------------------")
     except Exception as e:
         print(f"Erro ao conectar com o Blogger: {e}")
 
