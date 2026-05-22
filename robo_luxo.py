@@ -3,11 +3,13 @@ import urllib.request
 import json
 import xml.etree.ElementTree as ET
 import requests
+import time
 from google import genai
 
-# CONFIGURAÇÕES DA API DO GOOGLE
+# CONFIGURAÇÕES DA API DO GOOGLE (Projeto Portal Luxo Oficial)
 API_KEY = os.environ.get("GEMINI_API_KEY")
 REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
+CLIENT_ID = "249327057605-smqgro53c1cmrvf3gjdoqfp12s19l1o1.apps.googleusercontent.com"
 BLOG_ID = "2362582861639823192"
 
 # LISTA DE FONTES DE LUXO
@@ -19,22 +21,22 @@ FONTES_NEWS = [
 ]
 
 def renovar_access_token():
-    print("🔄 Renovando passe de acesso do Blogger de forma direta...")
+    print("🔄 Renovando passe de acesso usando o projeto Portal Luxo...")
     url = "https://oauth2.googleapis.com/token"
-    # Usando o método direto de renovação do Playground que dispensa o client_secret
+    # O Google aceita a renovação direta quando se usa o ecossistema do Playground
     payload = {
-        "client_id": "407408718192.apps.googleusercontent.com",
+        "client_id": CLIENT_ID,
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token"
     }
     try:
         response = requests.post(url, data=payload)
         if response.status_code == 200:
-            print("🔑 Novo Access Token gerado com sucesso!")
+            print("🔑 Novo Access Token gerado com total autorização!")
             return response.json().get("access_token")
         else:
-            print(f"⚠️ Resposta do servidor OAuth. Status: {response.status_code}")
-            # Se der erro de validação do app do Playground, usamos o token salvo no cofre
+            print(f"⚠️ Alerta na autenticação própria. Status: {response.status_code}")
+            print(f"Detalhes: {response.text}")
             return os.environ.get("BLOGGER_ACCESS_TOKEN")
     except Exception as e:
         print(f"❌ Erro ao renovar token: {e}")
@@ -62,7 +64,7 @@ def buscar_noticia_com_contingencia():
                 print(f"✅ Sucesso! Matéria capturada: '{titulo[:50]}...'")
                 return titulo, descricao
         except Exception as e:
-            print(f"⚠️ A fonte {fonte['nome']} falhou. Erro: {e}. Pulando...")
+            print(f"⚠️ A fonte {fonte['nome']} falhou. Pulando...")
             continue
     return None, None
 
@@ -89,11 +91,19 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     [CORPO_DO_POST] Seu texto em HTML aqui juntando as duas versões (PT/EN).
     """
     
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt
-    )
-    return response.text
+    for tentativa in range(1, 4):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text
+        except Exception as e:
+            print(f"⚠️ Servidor do Gemini ocupado (Tentativa {tentativa}/3). Aguardando...")
+            if tentativa < 3:
+                time.sleep(6)
+            else:
+                raise e
 
 def publicar_no_blogger_oficial(titulo, corpo_html, token_valido):
     print("--------------------------------------------------")
@@ -131,12 +141,14 @@ if __name__ == "__main__":
         orig_titulo, orig_desc = buscar_noticia_com_contingencia()
         
         if orig_titulo:
-            resultado_ia = usar_gemini_para_luxo(orig_titulo, orig_desc)
             try:
+                resultado_ia = usar_gemini_para_luxo(orig_titulo, orig_desc)
                 titulo_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
                 corpo_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
                 publicar_no_blogger_oficial(titulo_final, corpo_final, token_atualizado)
             except Exception as e:
-                publicar_no_blogger_oficial("Escape de Elite Internacional", resultado_ia, token_atualizado)
+                print(f"Falha ao separar tags: {e}")
+                if 'resultado_ia' in locals():
+                    publicar_no_blogger_oficial("Escape de Elite Internacional", resultado_ia, token_atualizado)
         else:
             print("📭 Nenhuma notícia foi minerada.")
