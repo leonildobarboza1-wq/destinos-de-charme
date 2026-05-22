@@ -10,7 +10,7 @@ from google import genai
 # CONFIGURAÇÕES DE ENVIO POR E-MAIL
 # ---------------------------------------------------------------------------
 # Cole aqui o e-mail secreto que você gerou no painel do seu Blogger:
-EMAIL_SECRETO_BLOGGER = "COLE_AQUI_O_SEU_EMAIL_SECRETO@blogger.com"
+EMAIL_SECRETO_BLOGGER = "leonildobarboza2.destinosdecharme@blogger.com"
 
 # Configurações da sua conta de e-mail que vai enviar (o e-mail secreto do robô)
 EMAIL_REMETENTE = os.environ.get("EMAIL_REMETENTE")
