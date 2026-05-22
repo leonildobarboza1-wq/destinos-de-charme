@@ -2,9 +2,8 @@ name: Robo Destinos de Charme
 
 on:
   schedule:
-    # Programado para rodar todos os dias às 09:00 da manhã (Horário de Brasília)
-    - cron: '0 12 * * *'
-  workflow_dispatch: # Permite que você clique num botão para testar o robô na hora que quiser
+    - cron: '0 12 * * *' # Roda todo dia às 09:00 da manhã
+  workflow_dispatch: # Botão para testar na hora
 
 jobs:
   publicar:
@@ -27,5 +26,6 @@ jobs:
     - name: Executar o Robô de Luxo
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        BLOGGER_ACCESS_TOKEN: ${{ secrets.BLOGGER_ACCESS_TOKEN }}
+        EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+        SENHA_REMETENTE: ${{ secrets.SENHA_REMETENTE }}
       run: python robo_luxo.py
