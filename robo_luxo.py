@@ -10,8 +10,8 @@ API_KEY = os.environ.get("GEMINI_API_KEY")
 REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
 BLOG_ID = "2362582861639823192"
 
-# Link atualizado com barra no final para evitar o erro 308
-FEED_URL = "https://www.relaischateaux.com/magazine/feed/"
+# FONTE DE LUXO ULTRA ESTÁVEL: Condé Nast Traveler (Destinos e Hotéis)
+FEED_URL = "https://www.cntraveler.com/feed/luxury-travel/rss"
 
 def renovar_access_token():
     print("Renovando passe de acesso do Blogger...")
@@ -30,17 +30,14 @@ def renovar_access_token():
     return os.environ.get("BLOGGER_ACCESS_TOKEN")
 
 def buscar_ultima_noticia():
-    print("Buscando novidades no mercado de luxo...")
+    print("Buscando novidades no mercado de luxo internacional...")
     try:
-        # Criamos um rastreador inteligente que aceita e segue redirecionamentos automaticamente
-        class RedirectionHandler(urllib.request.HTTPRedirectHandler):
-            def http_error_308(self, req, fp, code, msg, headers):
-                return self.http_error_301(req, fp, code, msg, headers)
-
-        opener = urllib.request.build_opener(RedirectionHandler)
-        opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
-        
-        with opener.open(FEED_URL) as response:
+        # Configuração limpa de leitura para o feed da Condé Nast
+        req = urllib.request.Request(
+            FEED_URL, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req) as response:
             xml_data = response.read()
         
         root = ET.fromstring(xml_data)
@@ -125,3 +122,5 @@ if __name__ == "__main__":
                 publicar_no_blogger_oficial(titulo_final, corpo_final, token_atualizado)
             except Exception as e:
                 publicar_no_blogger_oficial("Refúgio de Luxo Internacional", resultado_ia, token_atualizado)
+        else:
+            print("Não foi possível coletar dados da notícia devido ao erro do feed.")
