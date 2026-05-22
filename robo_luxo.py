@@ -10,19 +10,20 @@ API_KEY = os.environ.get("GEMINI_API_KEY")
 REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
 BLOG_ID = "2362582861639823192"
 
-# LISTA DE FONTES DE LUXO (O robô tentará uma por uma se houver falha)
+# LISTA DE FONTES DE LUXO
 FONTES_NEWS = [
-    {"nome": "Luxury Travel Advisor", "url": "https://www.luxurytraveladvisor.com/rss.xml"},
     {"nome": "Robb Report (Viagens)", "url": "https://robbreport.com/travel/feed/"},
+    {"nome": "Luxury Travel Advisor", "url": "https://www.luxurytraveladvisor.com/rss.xml"},
     {"nome": "Condé Nast Traveler (Luxo)", "url": "https://www.cntraveler.com/feed/luxury-travel/rss"},
     {"nome": "Elite Traveler", "url": "https://elitetraveler.com/feed"}
 ]
 
 def renovar_access_token():
-    print("🔄 Renovando passe de acesso do Blogger via Refresh Token...")
+    print("🔄 Renovando passe de acesso do Blogger de forma direta...")
     url = "https://oauth2.googleapis.com/token"
+    # Usando o método direto de renovação do Playground que dispensa o client_secret
     payload = {
-        "client_id": "407408718192.apps.googleusercontent.com", # Client ID padrão do Playground
+        "client_id": "407408718192.apps.googleusercontent.com",
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token"
     }
@@ -32,17 +33,17 @@ def renovar_access_token():
             print("🔑 Novo Access Token gerado com sucesso!")
             return response.json().get("access_token")
         else:
-            print(f"⚠️ Alerta na renovação do token. Status: {response.status_code}")
+            print(f"⚠️ Resposta do servidor OAuth. Status: {response.status_code}")
+            # Se der erro de validação do app do Playground, usamos o token salvo no cofre
+            return os.environ.get("BLOGGER_ACCESS_TOKEN")
     except Exception as e:
         print(f"❌ Erro ao renovar token: {e}")
     return os.environ.get("BLOGGER_ACCESS_TOKEN")
 
 def buscar_noticia_com_contingencia():
     print("🌐 Iniciando busca de novidades no mercado de luxo mundial...")
-    
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     for fonte in FONTES_NEWS:
@@ -58,13 +59,11 @@ def buscar_noticia_com_contingencia():
             if item is not None:
                 titulo = item.find('title').text
                 descricao = item.find('description').text if item.find('description') is not None else ""
-                print(f"✅ Sucesso! Matéria capturada de {fonte['nome']}: '{titulo[:50]}...'")
+                print(f"✅ Sucesso! Matéria capturada: '{titulo[:50]}...'")
                 return titulo, descricao
         except Exception as e:
-            print(f"⚠️ A fonte {fonte['nome']} falhou ou mudou de link. Erro: {e}. Pulando para a próxima...")
+            print(f"⚠️ A fonte {fonte['nome']} falhou. Erro: {e}. Pulando...")
             continue
-            
-    print("❌ Todas as fontes de notícias falharam hoje.")
     return None, None
 
 def usar_gemini_para_luxo(titulo_original, conteudo_original):
@@ -125,8 +124,8 @@ def publicar_no_blogger_oficial(titulo, corpo_html, token_valido):
         print(f"❌ Erro crítico ao conectar com o Blogger: {e}")
 
 if __name__ == "__main__":
-    if not API_KEY or not REFRESH_TOKEN:
-        print("⚠️ Chaves importantes (GEMINI_API_KEY ou BLOGGER_REFRESH_TOKEN) ausentes no GitHub.")
+    if not API_KEY:
+        print("⚠️ Chave GEMINI_API_KEY ausente.")
     else:
         token_atualizado = renovar_access_token()
         orig_titulo, orig_desc = buscar_noticia_com_contingencia()
@@ -138,7 +137,6 @@ if __name__ == "__main__":
                 corpo_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
                 publicar_no_blogger_oficial(titulo_final, corpo_final, token_atualizado)
             except Exception as e:
-                # Fallback caso o Gemini mude o padrão de tags de corte
                 publicar_no_blogger_oficial("Escape de Elite Internacional", resultado_ia, token_atualizado)
         else:
-            print("📭 Nenhuma notícia foi minerada, portanto nada foi enviado ao Blogger.")
+            print("📭 Nenhuma notícia foi minerada.")
