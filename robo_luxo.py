@@ -1,103 +1,142 @@
-import os
-import urllib.request
 import json
-import xml.etree.ElementTree as ET
-from google import genai
+import os
+from datetime import datetime
 
-# CONFIGURAÇÕES DIRETAS
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
-ACCESS_TOKEN = os.environ.get("BLOGGER_ACCESS_TOKEN")
-REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+# ============================================
+# CONFIG
+# ============================================
+
 BLOG_ID = "2362582861639823192"
 
-FONTES_NEWS = [
-    {"nome": "Robb Report", "url": "https://robbreport.com/travel/feed/"}
+SCOPES = [
+    "https://www.googleapis.com/auth/blogger"
 ]
 
-def renovar_token():
-    print("🔄 Atualizando credenciais de acesso ao Blogger...")
-    # Usamos o Client ID padrão do ecossistema para renovação direta
-    url = "https://oauth2.googleapis.com/token"
-    payload = f"refresh_token={REFRESH_TOKEN}&grant_type=refresh_token"
-    req = urllib.request.Request(
-        url, 
-        data=payload.encode('utf-8'), 
-        headers={'Content-Type': 'application/x-www-form-urlencoded'},
-        method='POST'
-    )
+# ============================================
+# AUTH
+# ============================================
+
+def get_blogger_service():
+    credentials_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+
+    if not credentials_json:
+        raise RuntimeError(
+            "Segredo GOOGLE_CREDENTIALS_JSON não encontrado."
+        )
+
     try:
-        with urllib.request.urlopen(req) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            return res.get("access_token", ACCESS_TOKEN)
-    except Exception:
-        return ACCESS_TOKEN
+        creds_info = json.loads(credentials_json)
 
-def buscar_noticia():
-    print("🌐 Minerando mercado de luxo internacional...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    for fonte in FONTES_NEWS:
-        try:
-            req = urllib.request.Request(fonte['url'], headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                root = ET.fromstring(response.read())
-            item = root.find('.//item')
-            if item is not None:
-                return item.find('title').text, (item.find('description').text if item.find('description') is not None else "")
-        except Exception:
-            continue
-    return None, None
+        credentials = Credentials.from_authorized_user_info(
+            creds_info,
+            SCOPES
+        )
 
-def usar_gemini(titulo, conteudo):
-    print("🧠 Gerando artigo de luxo via Gemini IA...")
-    client = genai.Client(api_key=GEMINI_KEY)
-    prompt = f"""
-    Você é o editor-chefe da revista 'Destinos de Charme'. Transforme a matéria em um artigo de luxo altamente sofisticado.
-    Título Original: {titulo}
-    Conteúdo Original: {conteudo}
-    Formatos obrigatórios:
-    [TITULO_DO_POST] Seu título aqui
-    [CORPO_DO_POST] Conteúdo em HTML limpo. Use <p>, <strong>. Inclua uma linha divisória elegante <hr> e coloque a versão traduzida para o inglês abaixo com o título 'ENGLISH VERSION'.
-    """
-    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-    return response.text
+        # Renovação automática oficial via refresh_token
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
 
-def publicar_no_blogger(token, titulo, corpo_html):
-    print("🚀 Injetando post diretamente no ecossistema Blogger...")
-    url = f"https://blogger.googleapis.com/v3/blogs/{BLOG_ID}/posts"
-    payload = {
+        service = build(
+            "blogger",
+            "v3",
+            credentials=credentials,
+            cache_discovery=False
+        )
+
+        return service
+
+    except Exception as e:
+        print("ERRO AO AUTENTICAR NO GOOGLE BLOGGER API")
+        raise e
+
+
+# ============================================
+# POSTAGEM
+# ============================================
+
+def publicar_artigo(service, titulo, html_content):
+    body = {
         "kind": "blogger#post",
         "title": titulo,
-        "content": corpo_html
+        "content": html_content
     }
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(
-        url, 
-        data=data, 
-        headers={
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {token}'
-        },
-        method='POST'
-    )
+
     try:
-        with urllib.request.urlopen(req) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            if 'id' in res:
-                print(f"✨ SUCESSO ABSOLUTO! Post publicado sob o ID: {res['id']}")
+        response = (
+            service.posts()
+            .insert(
+                blogId=BLOG_ID,
+                body=body,
+                isDraft=False
+            )
+            .execute()
+        )
+
+        print("POST PUBLICADO COM SUCESSO")
+        print(f"ID: {response.get('id')}")
+        print(f"URL: {response.get('url')}")
+
+        return response
+
+    except HttpError as e:
+        print("ERRO REAL DA BLOGGER API")
+        print(e)
+
+        # NÃO MASCARAR ERRO
+        raise e
+
     except Exception as e:
-        print(f"❌ Erro na publicação: {e}")
+        print("ERRO INESPERADO AO PUBLICAR")
+        raise e
+
+
+# ============================================
+# EXEMPLO DE EXECUÇÃO
+# ============================================
+
+def gerar_html_exemplo():
+    agora = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    return f"""
+    <h2>Artigo Automático</h2>
+
+    <p>Publicado automaticamente via GitHub Actions.</p>
+
+    <p><strong>Timestamp UTC:</strong> {agora}</p>
+
+    <p>Sistema oficial com OAuth2 Google.</p>
+    """
+
+
+def main():
+    try:
+        print("INICIANDO AUTENTICAÇÃO GOOGLE")
+
+        service = get_blogger_service()
+
+        print("AUTENTICAÇÃO OK")
+
+        titulo = f"Post Automático - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+
+        html_content = gerar_html_exemplo()
+
+        publicar_artigo(
+            service=service,
+            titulo=titulo,
+            html_content=html_content
+        )
+
+        print("PROCESSO FINALIZADO COM SUCESSO")
+
+    except Exception as e:
+        print("FALHA CRÍTICA NO PROCESSO")
+        raise e
+
 
 if __name__ == "__main__":
-    if not GEMINI_KEY:
-        print("⚠️ Chave do Gemini ausente.")
-    else:
-        orig_titulo, orig_desc = buscar_noticia()
-        if orig_titulo:
-            token_valido = renovar_token() if REFRESH_TOKEN else ACCESS_TOKEN
-            try:
-                resultado_ia = usar_gemini(orig_titulo, orig_desc)
-                t_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
-                c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
-                publicar_no_blogger(token_valido, t_final, c_final)
-            except Exception:
-                publicar_no_blogger(token_valido, "Escape de Elite Internacional", resultado_ia)
+    main()
