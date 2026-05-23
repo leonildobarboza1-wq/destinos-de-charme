@@ -6,10 +6,11 @@ import requests
 import time
 from google import genai
 
-# CONFIGURAÇÕES DA API DO GOOGLE (Projeto Portal Luxo Oficial)
+# CONFIGURAÇÕES OFICIAIS DO PLAYGROUND (Blindado contra erro 400)
 API_KEY = os.environ.get("GEMINI_API_KEY")
 REFRESH_TOKEN = os.environ.get("BLOGGER_REFRESH_TOKEN")
-CLIENT_ID = "249327057605-smqgro53c1cmrvf3gjdoqfp12s19l1o1.apps.googleusercontent.com"
+CLIENT_ID = "407408718192.apps.googleusercontent.com"  # ID Padrão do Playground
+CLIENT_SECRET = "b_wSgNRE_7m97fXgAsgXv8n_"             # Secret Padrão do Playground
 BLOG_ID = "2362582861639823192"
 
 # LISTA DE FONTES DE LUXO
@@ -21,26 +22,26 @@ FONTES_NEWS = [
 ]
 
 def renovar_access_token():
-    print("🔄 Renovando passe de acesso usando o projeto Portal Luxo...")
+    print("🔄 Renovando passe de acesso com as credenciais seguras do Playground...")
     url = "https://oauth2.googleapis.com/token"
-    # O Google aceita a renovação direta quando se usa o ecossistema do Playground
     payload = {
         "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token"
     }
     try:
         response = requests.post(url, data=payload)
         if response.status_code == 200:
-            print("🔑 Novo Access Token gerado com total autorização!")
+            print("🔑 Novo Access Token gerado com sucesso!")
             return response.json().get("access_token")
         else:
-            print(f"⚠️ Alerta na autenticação própria. Status: {response.status_code}")
+            print(f"❌ Erro crítico na renovação. Status: {response.status_code}")
             print(f"Detalhes: {response.text}")
-            return os.environ.get("BLOGGER_ACCESS_TOKEN")
+            return None
     except Exception as e:
-        print(f"❌ Erro ao renovar token: {e}")
-    return os.environ.get("BLOGGER_ACCESS_TOKEN")
+        print(f"❌ Erro ao conectar com o validador: {e}")
+    return None
 
 def buscar_noticia_com_contingencia():
     print("🌐 Iniciando busca de novidades no mercado de luxo mundial...")
@@ -91,7 +92,8 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
     [CORPO_DO_POST] Seu texto em HTML aqui juntando as duas versões (PT/EN).
     """
     
-    for tentativa in range(1, 4):
+    # Sistema de tentativas robusto contra lentidão do servidor (Erro 503)
+    for tentativa in range(1, 5):
         try:
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
@@ -99,13 +101,17 @@ def usar_gemini_para_luxo(titulo_original, conteudo_original):
             )
             return response.text
         except Exception as e:
-            print(f"⚠️ Servidor do Gemini ocupado (Tentativa {tentativa}/3). Aguardando...")
-            if tentativa < 3:
-                time.sleep(6)
+            print(f"⚠️ Servidor do Gemini ocupado (Tentativa {tentativa}/4). Aguardando 10 segundos...")
+            if tentativa < 4:
+                time.sleep(10)
             else:
                 raise e
 
 def publicar_no_blogger_oficial(titulo, corpo_html, token_valido):
+    if not token_valido:
+        print("❌ Publicação cancelada: Não temos um token de acesso válido.")
+        return
+
     print("--------------------------------------------------")
     print("🚀 Enviando artigo formatado para o seu Blogger...")
     url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts"
@@ -140,15 +146,15 @@ if __name__ == "__main__":
         token_atualizado = renovar_access_token()
         orig_titulo, orig_desc = buscar_noticia_com_contingencia()
         
-        if orig_titulo:
+        if orig_titulo and token_atualizado:
             try:
                 resultado_ia = usar_gemini_para_luxo(orig_titulo, orig_desc)
                 titulo_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
                 corpo_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
                 publicar_no_blogger_oficial(titulo_final, corpo_final, token_atualizado)
             except Exception as e:
-                print(f"Falha ao separar tags: {e}")
+                print(f"Aviso na separação das tags: {e}")
                 if 'resultado_ia' in locals():
                     publicar_no_blogger_oficial("Escape de Elite Internacional", resultado_ia, token_atualizado)
         else:
-            print("📭 Nenhuma notícia foi minerada.")
+            print("📭 Falha na preparação: Sem notícias ou sem autorização do Google.")
