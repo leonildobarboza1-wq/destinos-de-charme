@@ -38,14 +38,6 @@ TEMAS_IMAGENS = [
 # VARIÁVEIS DE AMBIENTE
 # ==========================================
 
-UNSPLASH_ACCESS_KEY = os.getenv(
-    "UNSPLASH_ACCESS_KEY"
-)
-
-if not UNSPLASH_ACCESS_KEY:
-    raise Exception(
-        "UNSPLASH_ACCESS_KEY não encontrada nos Secrets do GitHub"
-    )
 
 # ==========================================
 # BLOGGER AUTH
@@ -132,10 +124,6 @@ def obter_noticia():
 
             print(f"ERRO RSS: {url}")
             print(e)
-
-    raise Exception(
-        "Nenhuma notícia encontrada"
-    )
 
 
 # ==========================================
