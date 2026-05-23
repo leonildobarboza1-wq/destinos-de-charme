@@ -1,7 +1,7 @@
 import os
 import json
+import time
 import feedparser
-from datetime import datetime
 from google import genai
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -45,7 +45,7 @@ def get_blogger_service():
         return service
 
     except Exception as e:
-        print("ERRO AO AUTENTICAR NO GOOGLE BLOGGER API")
+        print("ERRO AO AUTENTICAR NO BLOGGER")
         raise e
 
 
@@ -54,11 +54,18 @@ def get_blogger_service():
 # =========================
 
 def get_gemini_client():
-    api_key = os.environ["GEMINI_API_KEY"]
+    try:
+        api_key = os.environ["GEMINI_API_KEY"]
 
-    client = genai.Client(api_key=api_key)
+        client = genai.Client(
+            api_key=api_key
+        )
 
-    return client
+        return client
+
+    except Exception as e:
+        print("ERRO AO INICIALIZAR GEMINI")
+        raise e
 
 
 # =========================
@@ -67,20 +74,25 @@ def get_gemini_client():
 
 def obter_noticia():
     for url in RSS_FEEDS:
-        feed = feedparser.parse(url)
+        try:
+            feed = feedparser.parse(url)
 
-        if feed.entries:
-            noticia = feed.entries[0]
+            if feed.entries:
+                noticia = feed.entries[0]
 
-            titulo = noticia.title
-            resumo = getattr(noticia, "summary", "")
-            link = noticia.link
+                titulo = noticia.title
+                resumo = getattr(noticia, "summary", "")
+                link = noticia.link
 
-            return {
-                "titulo": titulo,
-                "resumo": resumo,
-                "link": link
-            }
+                return {
+                    "titulo": titulo,
+                    "resumo": resumo,
+                    "link": link
+                }
+
+        except Exception as e:
+            print(f"ERRO RSS: {url}")
+            print(e)
 
     raise Exception("Nenhuma notícia encontrada nos feeds RSS")
 
@@ -90,42 +102,98 @@ def obter_noticia():
 # =========================
 
 def gerar_artigo(cliente, noticia):
+
     prompt = f"""
-    Você é um redator especialista em turismo de luxo,
-    hotéis premium, destinos sofisticados e lifestyle internacional.
+Você é um redator especialista em:
+- turismo de luxo
+- hotéis premium
+- destinos sofisticados
+- lifestyle internacional
 
-    Crie um artigo PREMIUM em HTML para Blogger.
+Crie um artigo PREMIUM em HTML para Blogger.
 
-    REGRAS:
-    - Texto elegante
-    - SEO avançado
-    - Linguagem refinada
-    - Estrutura profissional
-    - Use subtítulos H2
-    - Use parágrafos HTML
-    - NÃO use markdown
-    - Finalize com conclusão elegante
+REGRAS:
+- Texto elegante
+- SEO avançado
+- Linguagem refinada
+- Estrutura profissional
+- Use subtítulos H2
+- Use HTML puro
+- Use parágrafos HTML
+- NÃO use markdown
+- Mínimo 1200 palavras
+- Finalize com conclusão elegante
 
-    TÍTULO:
-    {noticia['titulo']}
+TÍTULO:
+{noticia['titulo']}
 
-    RESUMO:
-    {noticia['resumo']}
+RESUMO:
+{noticia['resumo']}
 
-    LINK ORIGINAL:
-    {noticia['link']}
-    """
+LINK ORIGINAL:
+{noticia['link']}
+"""
 
-    resposta = cliente.models.generate_content(
-        model="gemini-2.5-pro",
-        contents=prompt
-    )
+    try:
 
-    html = resposta.text
+        resposta = cliente.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
 
-    titulo_final = noticia["titulo"]
+        html = resposta.text
 
-    return titulo_final, html
+        if not html:
+            raise Exception("Resposta vazia da IA")
+
+        titulo_final = noticia["titulo"]
+
+        return titulo_final, html
+
+    except Exception as e:
+
+        print("ERRO AO GERAR ARTIGO")
+        print(e)
+
+        html_fallback = f"""
+<h1>{noticia['titulo']}</h1>
+
+<p>
+O universo do luxo continua evoluindo com experiências exclusivas,
+destinos sofisticados e tendências premium que redefinem o turismo
+internacional.
+</p>
+
+<p>
+A notícia original destaca:
+<a href="{noticia['link']}" target="_blank">
+{noticia['titulo']}
+</a>
+</p>
+
+<h2>Experiência Premium</h2>
+
+<p>
+Hotéis exclusivos, experiências personalizadas e serviços de alto padrão
+continuam atraindo viajantes exigentes ao redor do mundo.
+</p>
+
+<h2>Tendências do Mercado de Luxo</h2>
+
+<p>
+O mercado global de lifestyle premium segue crescendo, impulsionado por
+novas experiências de hospitalidade e turismo sofisticado.
+</p>
+
+<h2>Conclusão</h2>
+
+<p>
+O segmento de luxo permanece como referência em inovação, exclusividade
+e experiências memoráveis para viajantes internacionais.
+</p>
+"""
+
+        return noticia["titulo"], html_fallback
 
 
 # =========================
@@ -133,7 +201,9 @@ def gerar_artigo(cliente, noticia):
 # =========================
 
 def publicar_post(service, titulo, html):
+
     try:
+
         body = {
             "title": titulo,
             "content": html
@@ -158,7 +228,9 @@ def publicar_post(service, titulo, html):
 # =========================
 
 def main():
+
     try:
+
         print("\nINICIANDO PIPELINE")
 
         service = get_blogger_service()
@@ -171,8 +243,10 @@ def main():
 
         noticia = obter_noticia()
 
-        print(f"\nNOTÍCIA ENCONTRADA:")
+        print("\nNOTÍCIA ENCONTRADA:")
         print(noticia["titulo"])
+
+        time.sleep(3)
 
         titulo, html = gerar_artigo(
             gemini,
@@ -190,7 +264,10 @@ def main():
         print("\nPROCESSO FINALIZADO")
 
     except Exception as e:
+
         print("\nFALHA CRÍTICA NO PROCESSO")
+        print(e)
+
         raise e
 
 
