@@ -1,7 +1,9 @@
 import os
 import json
 import time
+import requests
 import feedparser
+
 from google import genai
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -24,14 +26,18 @@ RSS_FEEDS = [
 # =========================
 
 def get_blogger_service():
+
     try:
+
         credentials_info = json.loads(
             os.environ["GOOGLE_CREDENTIALS_JSON"]
         )
 
         credentials = Credentials.from_authorized_user_info(
             credentials_info,
-            scopes=["https://www.googleapis.com/auth/blogger"]
+            scopes=[
+                "https://www.googleapis.com/auth/blogger"
+            ]
         )
 
         credentials.refresh(Request())
@@ -45,6 +51,7 @@ def get_blogger_service():
         return service
 
     except Exception as e:
+
         print("ERRO AO AUTENTICAR NO BLOGGER")
         raise e
 
@@ -54,7 +61,9 @@ def get_blogger_service():
 # =========================
 
 def get_gemini_client():
+
     try:
+
         api_key = os.environ["GEMINI_API_KEY"]
 
         client = genai.Client(
@@ -64,8 +73,65 @@ def get_gemini_client():
         return client
 
     except Exception as e:
+
         print("ERRO AO INICIALIZAR GEMINI")
         raise e
+
+
+# =========================
+# BUSCAR IMAGEM UNSPLASH
+# =========================
+
+def buscar_imagem(query):
+
+    try:
+
+        access_key = os.environ[
+            "UNSPLASH_ACCESS_KEY"
+        ]
+
+        url = (
+            "https://api.unsplash.com/search/photos"
+        )
+
+        params = {
+            "query": query,
+            "per_page": 1,
+            "orientation": "landscape"
+        }
+
+        headers = {
+            "Authorization": (
+                f"Client-ID {access_key}"
+            )
+        }
+
+        response = requests.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=30
+        )
+
+        data = response.json()
+
+        if (
+            "results" in data and
+            len(data["results"]) > 0
+        ):
+
+            imagem = data["results"][0]
+
+            return imagem["urls"]["regular"]
+
+        return None
+
+    except Exception as e:
+
+        print("ERRO AO BUSCAR IMAGEM")
+        print(e)
+
+        return None
 
 
 # =========================
@@ -73,15 +139,25 @@ def get_gemini_client():
 # =========================
 
 def obter_noticia():
+
     for url in RSS_FEEDS:
+
         try:
+
             feed = feedparser.parse(url)
 
             if feed.entries:
+
                 noticia = feed.entries[0]
 
                 titulo = noticia.title
-                resumo = getattr(noticia, "summary", "")
+
+                resumo = getattr(
+                    noticia,
+                    "summary",
+                    ""
+                )
+
                 link = noticia.link
 
                 return {
@@ -91,10 +167,13 @@ def obter_noticia():
                 }
 
         except Exception as e:
+
             print(f"ERRO RSS: {url}")
             print(e)
 
-    raise Exception("Nenhuma notícia encontrada nos feeds RSS")
+    raise Exception(
+        "Nenhuma notícia encontrada"
+    )
 
 
 # =========================
@@ -103,16 +182,24 @@ def obter_noticia():
 
 def gerar_artigo(cliente, noticia):
 
+    imagem_url = buscar_imagem(
+        noticia["titulo"]
+    )
+
     prompt = f"""
 Você é um redator especialista em:
+
 - turismo de luxo
 - hotéis premium
 - destinos sofisticados
 - lifestyle internacional
+- viagens exclusivas
 
-Crie um artigo PREMIUM em HTML para Blogger.
+Crie um artigo PREMIUM em HTML
+para Blogger.
 
 REGRAS:
+
 - Texto elegante
 - SEO avançado
 - Linguagem refinada
@@ -123,6 +210,8 @@ REGRAS:
 - NÃO use markdown
 - Mínimo 1200 palavras
 - Finalize com conclusão elegante
+- Crie um texto sofisticado
+- Use tom de revista internacional
 
 TÍTULO:
 {noticia['titulo']}
@@ -141,14 +230,52 @@ LINK ORIGINAL:
             contents=prompt
         )
 
-        html = resposta.text
+        html_ia = resposta.text
 
-        if not html:
-            raise Exception("Resposta vazia da IA")
+        if not html_ia:
+
+            raise Exception(
+                "Resposta vazia da IA"
+            )
+
+        capa_html = ""
+
+        if imagem_url:
+
+            capa_html = f"""
+<div style="margin-bottom:30px;">
+
+<img
+src="{imagem_url}"
+style="
+width:100%;
+border-radius:16px;
+margin-bottom:10px;
+box-shadow:0 4px 18px rgba(0,0,0,0.15);
+"
+>
+
+</div>
+"""
+
+        html_final = f"""
+{capa_html}
+
+{html_ia}
+
+<hr>
+
+<p style="font-size:14px;color:#777;">
+Fonte original:
+<a href="{noticia['link']}" target="_blank">
+{noticia['titulo']}
+</a>
+</p>
+"""
 
         titulo_final = noticia["titulo"]
 
-        return titulo_final, html
+        return titulo_final, html_final
 
     except Exception as e:
 
@@ -159,9 +286,11 @@ LINK ORIGINAL:
 <h1>{noticia['titulo']}</h1>
 
 <p>
-O universo do luxo continua evoluindo com experiências exclusivas,
-destinos sofisticados e tendências premium que redefinem o turismo
-internacional.
+O universo do luxo continua
+evoluindo com experiências
+exclusivas, destinos sofisticados
+e tendências premium que redefinem
+o turismo internacional.
 </p>
 
 <p>
@@ -174,33 +303,49 @@ A notícia original destaca:
 <h2>Experiência Premium</h2>
 
 <p>
-Hotéis exclusivos, experiências personalizadas e serviços de alto padrão
-continuam atraindo viajantes exigentes ao redor do mundo.
+Hotéis exclusivos, experiências
+personalizadas e serviços de alto
+padrão continuam atraindo
+viajantes exigentes ao redor
+do mundo.
 </p>
 
 <h2>Tendências do Mercado de Luxo</h2>
 
 <p>
-O mercado global de lifestyle premium segue crescendo, impulsionado por
-novas experiências de hospitalidade e turismo sofisticado.
+O mercado global de lifestyle
+premium segue crescendo,
+impulsionado por novas experiências
+de hospitalidade e turismo
+sofisticado.
 </p>
 
 <h2>Conclusão</h2>
 
 <p>
-O segmento de luxo permanece como referência em inovação, exclusividade
-e experiências memoráveis para viajantes internacionais.
+O segmento de luxo permanece como
+referência em inovação,
+exclusividade e experiências
+memoráveis para viajantes
+internacionais.
 </p>
 """
 
-        return noticia["titulo"], html_fallback
+        return (
+            noticia["titulo"],
+            html_fallback
+        )
 
 
 # =========================
 # PUBLICAR BLOGGER
 # =========================
 
-def publicar_post(service, titulo, html):
+def publicar_post(
+    service,
+    titulo,
+    html
+):
 
     try:
 
@@ -215,11 +360,18 @@ def publicar_post(service, titulo, html):
             isDraft=False
         ).execute()
 
-        print("\nPOST PUBLICADO COM SUCESSO")
+        print(
+            "\nPOST PUBLICADO COM SUCESSO"
+        )
+
         print(post["url"])
 
     except Exception as e:
-        print("ERRO AO PUBLICAR NO BLOGGER")
+
+        print(
+            "ERRO AO PUBLICAR NO BLOGGER"
+        )
+
         raise e
 
 
@@ -265,7 +417,10 @@ def main():
 
     except Exception as e:
 
-        print("\nFALHA CRÍTICA NO PROCESSO")
+        print(
+            "\nFALHA CRÍTICA NO PROCESSO"
+        )
+
         print(e)
 
         raise e
