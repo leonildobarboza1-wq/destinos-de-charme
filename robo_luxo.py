@@ -1,7 +1,7 @@
 import os
 import json
 import time
-import requests
+import random
 import feedparser
 
 from google import genai
@@ -9,9 +9,9 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-# =========================
+# ==========================================
 # CONFIGURAÇÕES
-# =========================
+# ==========================================
 
 BLOG_ID = "2362582861639823192"
 
@@ -21,124 +21,68 @@ RSS_FEEDS = [
     "https://www.forbes.com/lifestyle/feed",
 ]
 
-# =========================
-# AUTENTICAÇÃO BLOGGER
-# =========================
+UNSPLASH_ACCESS_KEY = os.environ["UNSPLASH_ACCESS_KEY"]
+
+TEMAS_IMAGENS = [
+    "luxury hotel",
+    "luxury resort",
+    "maldives resort",
+    "private island",
+    "luxury travel",
+    "luxury beach",
+    "luxury suite",
+    "luxury vacation",
+    "luxury destination",
+]
+
+# ==========================================
+# BLOGGER AUTH
+# ==========================================
 
 def get_blogger_service():
 
-    try:
+    credentials_info = json.loads(
+        os.environ["GOOGLE_CREDENTIALS_JSON"]
+    )
 
-        credentials_info = json.loads(
-            os.environ["GOOGLE_CREDENTIALS_JSON"]
-        )
+    credentials = Credentials.from_authorized_user_info(
+        credentials_info,
+        scopes=["https://www.googleapis.com/auth/blogger"]
+    )
 
-        credentials = Credentials.from_authorized_user_info(
-            credentials_info,
-            scopes=[
-                "https://www.googleapis.com/auth/blogger"
-            ]
-        )
+    credentials.refresh(Request())
 
-        credentials.refresh(Request())
+    service = build(
+        "blogger",
+        "v3",
+        credentials=credentials
+    )
 
-        service = build(
-            "blogger",
-            "v3",
-            credentials=credentials
-        )
-
-        return service
-
-    except Exception as e:
-
-        print("ERRO AO AUTENTICAR NO BLOGGER")
-        raise e
+    return service
 
 
-# =========================
-# GEMINI API
-# =========================
+# ==========================================
+# GEMINI
+# ==========================================
 
 def get_gemini_client():
 
-    try:
+    api_key = os.environ["GEMINI_API_KEY"]
 
-        api_key = os.environ["GEMINI_API_KEY"]
+    client = genai.Client(
+        api_key=api_key
+    )
 
-        client = genai.Client(
-            api_key=api_key
-        )
-
-        return client
-
-    except Exception as e:
-
-        print("ERRO AO INICIALIZAR GEMINI")
-        raise e
+    return client
 
 
-# =========================
-# BUSCAR IMAGEM UNSPLASH
-# =========================
-
-def buscar_imagem(query):
-
-    try:
-
-        access_key = os.environ[
-            "UNSPLASH_ACCESS_KEY"
-        ]
-
-        url = (
-            "https://api.unsplash.com/search/photos"
-        )
-
-        params = {
-            "query": query,
-            "per_page": 1,
-            "orientation": "landscape"
-        }
-
-        headers = {
-            "Authorization": (
-                f"Client-ID {access_key}"
-            )
-        }
-
-        response = requests.get(
-            url,
-            params=params,
-            headers=headers,
-            timeout=30
-        )
-
-        data = response.json()
-
-        if (
-            "results" in data and
-            len(data["results"]) > 0
-        ):
-
-            imagem = data["results"][0]
-
-            return imagem["urls"]["regular"]
-
-        return None
-
-    except Exception as e:
-
-        print("ERRO AO BUSCAR IMAGEM")
-        print(e)
-
-        return None
-
-
-# =========================
+# ==========================================
 # RSS
-# =========================
+# ==========================================
 
 def obter_noticia():
+
+    random.shuffle(RSS_FEEDS)
 
     for url in RSS_FEEDS:
 
@@ -148,16 +92,10 @@ def obter_noticia():
 
             if feed.entries:
 
-                noticia = feed.entries[0]
+                noticia = random.choice(feed.entries[:5])
 
                 titulo = noticia.title
-
-                resumo = getattr(
-                    noticia,
-                    "summary",
-                    ""
-                )
-
+                resumo = getattr(noticia, "summary", "")
                 link = noticia.link
 
                 return {
@@ -171,47 +109,54 @@ def obter_noticia():
             print(f"ERRO RSS: {url}")
             print(e)
 
-    raise Exception(
-        "Nenhuma notícia encontrada"
+    raise Exception("Nenhuma notícia encontrada")
+
+
+# ==========================================
+# IMAGEM UNSPLASH
+# ==========================================
+
+def gerar_imagem_url():
+
+    tema = random.choice(TEMAS_IMAGENS)
+
+    image_url = (
+        f"https://source.unsplash.com/1600x900/?{tema}"
     )
 
+    return image_url
 
-# =========================
-# GERAR ARTIGO IA
-# =========================
 
-def gerar_artigo(cliente, noticia):
+# ==========================================
+# GERAR ARTIGO
+# ==========================================
 
-    imagem_url = buscar_imagem(
-        noticia["titulo"]
-    )
+def gerar_artigo(cliente, noticia, imagem_url):
 
     prompt = f"""
-Você é um redator especialista em:
+Você é um redator profissional especialista em:
 
 - turismo de luxo
 - hotéis premium
-- destinos sofisticados
-- lifestyle internacional
-- viagens exclusivas
+- resorts exclusivos
+- lifestyle sofisticado
+- viagens internacionais
 
-Crie um artigo PREMIUM em HTML
-para Blogger.
+Crie um artigo PREMIUM em HTML para Blogger.
 
 REGRAS:
 
-- Texto elegante
+- mínimo 1200 palavras
 - SEO avançado
-- Linguagem refinada
-- Estrutura profissional
-- Use subtítulos H2
-- Use HTML puro
-- Use parágrafos HTML
+- tom sofisticado
+- estrutura elegante
+- use H2 e H3
+- HTML puro
 - NÃO use markdown
-- Mínimo 1200 palavras
-- Finalize com conclusão elegante
-- Crie um texto sofisticado
-- Use tom de revista internacional
+- texto humanizado
+- conteúdo altamente profissional
+- inclua dicas de viagem
+- finalize com conclusão elegante
 
 TÍTULO:
 {noticia['titulo']}
@@ -219,7 +164,7 @@ TÍTULO:
 RESUMO:
 {noticia['resumo']}
 
-LINK ORIGINAL:
+LINK:
 {noticia['link']}
 """
 
@@ -230,160 +175,101 @@ LINK ORIGINAL:
             contents=prompt
         )
 
-        html_ia = resposta.text
+        html = resposta.text
 
-        if not html_ia:
-
-            raise Exception(
-                "Resposta vazia da IA"
-            )
-
-        capa_html = ""
-
-        if imagem_url:
-
-            capa_html = f"""
-<div style="margin-bottom:30px;">
-
-<img
-src="{imagem_url}"
-style="
-width:100%;
-border-radius:16px;
-margin-bottom:10px;
-box-shadow:0 4px 18px rgba(0,0,0,0.15);
-"
->
-
-</div>
-"""
+        if not html:
+            raise Exception("Resposta vazia")
 
         html_final = f"""
-{capa_html}
+<div style="text-align:center;">
+<img src="{imagem_url}" style="width:100%; border-radius:12px;">
+</div>
 
-{html_ia}
+{html}
+"""
 
-<hr>
+        return noticia["titulo"], html_final
 
-<p style="font-size:14px;color:#777;">
+    except Exception as e:
+
+        print("ERRO GEMINI")
+        print(e)
+
+        fallback = f"""
+<div style="text-align:center;">
+<img src="{imagem_url}" style="width:100%; border-radius:12px;">
+</div>
+
+<h1>{noticia['titulo']}</h1>
+
+<p>
+O universo do turismo de luxo continua crescendo globalmente,
+com experiências exclusivas e destinos sofisticados atraindo
+viajantes exigentes.
+</p>
+
+<h2>Experiências Premium</h2>
+
+<p>
+Resorts exclusivos, hotéis cinco estrelas e viagens personalizadas
+seguem dominando o mercado internacional de luxo.
+</p>
+
+<h2>Destinos Sofisticados</h2>
+
+<p>
+Os viajantes modernos buscam conforto, privacidade e experiências
+memoráveis em destinos paradisíacos ao redor do mundo.
+</p>
+
+<p>
 Fonte original:
 <a href="{noticia['link']}" target="_blank">
 {noticia['titulo']}
 </a>
 </p>
-"""
-
-        titulo_final = noticia["titulo"]
-
-        return titulo_final, html_final
-
-    except Exception as e:
-
-        print("ERRO AO GERAR ARTIGO")
-        print(e)
-
-        html_fallback = f"""
-<h1>{noticia['titulo']}</h1>
-
-<p>
-O universo do luxo continua
-evoluindo com experiências
-exclusivas, destinos sofisticados
-e tendências premium que redefinem
-o turismo internacional.
-</p>
-
-<p>
-A notícia original destaca:
-<a href="{noticia['link']}" target="_blank">
-{noticia['titulo']}
-</a>
-</p>
-
-<h2>Experiência Premium</h2>
-
-<p>
-Hotéis exclusivos, experiências
-personalizadas e serviços de alto
-padrão continuam atraindo
-viajantes exigentes ao redor
-do mundo.
-</p>
-
-<h2>Tendências do Mercado de Luxo</h2>
-
-<p>
-O mercado global de lifestyle
-premium segue crescendo,
-impulsionado por novas experiências
-de hospitalidade e turismo
-sofisticado.
-</p>
 
 <h2>Conclusão</h2>
 
 <p>
-O segmento de luxo permanece como
-referência em inovação,
-exclusividade e experiências
-memoráveis para viajantes
-internacionais.
+O setor premium continua redefinindo o conceito de viagens exclusivas,
+elevando o padrão da hospitalidade internacional.
 </p>
 """
 
-        return (
-            noticia["titulo"],
-            html_fallback
-        )
+        return noticia["titulo"], fallback
 
 
-# =========================
-# PUBLICAR BLOGGER
-# =========================
+# ==========================================
+# PUBLICAR
+# ==========================================
 
-def publicar_post(
-    service,
-    titulo,
-    html
-):
+def publicar_post(service, titulo, html):
 
-    try:
+    body = {
+        "title": titulo,
+        "content": html
+    }
 
-        body = {
-            "title": titulo,
-            "content": html
-        }
+    post = service.posts().insert(
+        blogId=BLOG_ID,
+        body=body,
+        isDraft=False
+    ).execute()
 
-        post = service.posts().insert(
-            blogId=BLOG_ID,
-            body=body,
-            isDraft=False
-        ).execute()
-
-        print(
-            "\nPOST PUBLICADO COM SUCESSO"
-        )
-
-        print(post["url"])
-
-    except Exception as e:
-
-        print(
-            "ERRO AO PUBLICAR NO BLOGGER"
-        )
-
-        raise e
+    print("\nPOST PUBLICADO:")
+    print(post["url"])
 
 
-# =========================
+# ==========================================
 # MAIN
-# =========================
+# ==========================================
 
 def main():
 
     try:
 
-        print("\nINICIANDO PIPELINE")
+        print("\nINICIANDO ROBÔ")
 
         service = get_blogger_service()
 
@@ -395,14 +281,19 @@ def main():
 
         noticia = obter_noticia()
 
-        print("\nNOTÍCIA ENCONTRADA:")
+        print("\nNOTÍCIA:")
         print(noticia["titulo"])
 
-        time.sleep(3)
+        imagem_url = gerar_imagem_url()
+
+        print("\nIMAGEM OK")
+
+        time.sleep(2)
 
         titulo, html = gerar_artigo(
             gemini,
-            noticia
+            noticia,
+            imagem_url
         )
 
         print("\nARTIGO GERADO")
@@ -417,10 +308,7 @@ def main():
 
     except Exception as e:
 
-        print(
-            "\nFALHA CRÍTICA NO PROCESSO"
-        )
-
+        print("\nERRO CRÍTICO")
         print(e)
 
         raise e
