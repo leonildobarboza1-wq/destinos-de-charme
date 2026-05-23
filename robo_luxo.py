@@ -4,6 +4,7 @@ import time
 import random
 import requests
 import feedparser
+import re
 
 from google import genai
 from google.oauth2.credentials import Credentials
@@ -26,18 +27,25 @@ TEMAS_IMAGENS = [
     "luxury hotel",
     "luxury resort",
     "maldives resort",
-    "private island",
-    "luxury travel",
-    "luxury beach",
+    "private island luxury",
+    "luxury beach resort",
     "luxury suite",
     "luxury vacation",
     "luxury destination",
+    "luxury travel lifestyle",
+    "five star hotel",
+    "exclusive resort",
+    "luxury yacht",
 ]
 
-# ==========================================
-# VARIÁVEIS DE AMBIENTE
-# ==========================================
+UNSPLASH_ACCESS_KEY = os.environ.get(
+    "UNSPLASH_ACCESS_KEY"
+)
 
+if not UNSPLASH_ACCESS_KEY:
+    raise Exception(
+        "UNSPLASH_ACCESS_KEY não encontrada nos Secrets do GitHub"
+    )
 
 # ==========================================
 # BLOGGER AUTH
@@ -101,7 +109,7 @@ def obter_noticia():
             if feed.entries:
 
                 noticia = random.choice(
-                    feed.entries[:5]
+                    feed.entries[:7]
                 )
 
                 titulo = noticia.title
@@ -111,6 +119,8 @@ def obter_noticia():
                     "summary",
                     ""
                 )
+
+                resumo = limpar_html(resumo)
 
                 link = noticia.link
 
@@ -125,95 +135,160 @@ def obter_noticia():
             print(f"ERRO RSS: {url}")
             print(e)
 
+    raise Exception(
+        "Nenhuma notícia encontrada"
+    )
+
 
 # ==========================================
-# UNSPLASH API
+# LIMPAR HTML
 # ==========================================
 
-def gerar_imagem_url():
+def limpar_html(texto):
+
+    texto = re.sub(
+        r"<.*?>",
+        "",
+        texto
+    )
+
+    return texto.strip()
+
+
+# ==========================================
+# BUSCAR MÚLTIPLAS IMAGENS
+# ==========================================
+
+def gerar_imagens():
+
+    imagens = []
 
     try:
 
-        tema = random.choice(
-            TEMAS_IMAGENS
-        )
+        for i in range(5):
 
-        print(f"\nBUSCANDO IMAGEM: {tema}")
-
-        url = (
-            "https://api.unsplash.com/search/photos"
-        )
-
-        headers = {
-            "Accept-Version": "v1"
-        }
-
-        params = {
-            "query": tema,
-            "orientation": "landscape",
-            "per_page": 30,
-            "client_id": UNSPLASH_ACCESS_KEY
-        }
-
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=30
-        )
-
-        if response.status_code != 200:
-
-            print(response.text)
-
-            raise Exception(
-                f"Erro Unsplash: {response.status_code}"
+            tema = random.choice(
+                TEMAS_IMAGENS
             )
 
-        data = response.json()
+            print(f"\nBUSCANDO IMAGEM: {tema}")
 
-        results = data.get(
-            "results",
-            []
-        )
+            url = (
+                "https://api.unsplash.com/search/photos"
+            )
 
-        if not results:
+            headers = {
+                "Accept-Version": "v1"
+            }
+
+            params = {
+                "query": tema,
+                "orientation": "landscape",
+                "per_page": 30,
+                "client_id": UNSPLASH_ACCESS_KEY
+            }
+
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+
+                print(response.text)
+
+                continue
+
+            data = response.json()
+
+            resultados = data.get(
+                "results",
+                []
+            )
+
+            if not resultados:
+                continue
+
+            imagem = random.choice(
+                resultados
+            )
+
+            imagens.append({
+                "url": imagem["urls"]["regular"],
+                "autor": imagem["user"]["name"]
+            })
+
+            time.sleep(1)
+
+        if not imagens:
 
             raise Exception(
                 "Nenhuma imagem encontrada"
             )
 
-        imagem = random.choice(results)
+        print(
+            f"\nTOTAL DE IMAGENS: {len(imagens)}"
+        )
 
-        imagem_url = imagem["urls"]["regular"]
-
-        autor = imagem["user"]["name"]
-
-        print("\nIMAGEM ENCONTRADA")
-        print(imagem_url)
-        print(f"Autor: {autor}")
-
-        return imagem_url
+        return imagens
 
     except Exception as e:
 
-        print("\nERRO UNSPLASH")
+        print("\nERRO IMAGENS")
         print(e)
 
-        return (
-            "https://images.unsplash.com/"
-            "photo-1507525428034-b723cf961d3e"
-        )
+        return [
+            {
+                "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+                "autor": "Unsplash"
+            }
+        ]
 
 
 # ==========================================
-# GERAR ARTIGO
+# HTML IMAGENS
+# ==========================================
+
+def bloco_imagem(imagem):
+
+    return f"""
+<div style="
+margin:45px 0;
+text-align:center;
+">
+
+<img
+src="{imagem['url']}"
+alt="Luxury Travel"
+style="
+width:100%;
+border-radius:18px;
+box-shadow:0 10px 30px rgba(0,0,0,0.15);
+"
+>
+
+<p style="
+font-size:13px;
+color:#888;
+margin-top:8px;
+">
+Photo: {imagem['autor']} / Unsplash
+</p>
+
+</div>
+"""
+
+
+# ==========================================
+# GERAR ARTIGO IA
 # ==========================================
 
 def gerar_artigo(
     cliente,
     noticia,
-    imagem_url
+    imagens
 ):
 
     prompt = f"""
@@ -223,26 +298,34 @@ Você é um redator profissional especialista em:
 - resorts premium
 - hotéis sofisticados
 - lifestyle internacional
-- experiências exclusivas
+- viagens exclusivas
 
 Crie um artigo PREMIUM em HTML.
 
+OBJETIVO:
+Criar um conteúdo digno de revista internacional de luxo.
+
 REGRAS IMPORTANTES:
 
-- mínimo 1200 palavras
+- mínimo 1500 palavras
 - SEO avançado
 - tom sofisticado
+- texto extremamente humanizado
+- estrutura estilo MAGAZINE
 - linguagem elegante
-- texto humanizado
-- estrutura profissional
-- use H2 e H3
+- storytelling profissional
+- usar H2 e H3
 - HTML puro
 - NÃO use markdown
-- use storytelling
-- destaque experiências premium
-- destaque destinos sofisticados
-- inclua dicas de viagem
-- finalize com conclusão elegante
+- incluir emoção e exclusividade
+- criar subtítulos fortes
+- incluir experiências premium
+- incluir tendências de turismo de luxo
+- incluir dicas sofisticadas
+- criar leitura agradável
+- finalizar com conclusão elegante
+- não repetir frases
+- criar aparência profissional
 
 TÍTULO:
 {noticia['titulo']}
@@ -269,43 +352,56 @@ LINK ORIGINAL:
                 "Resposta vazia da IA"
             )
 
+        partes = html.split("</h2>")
+
         html_final = f"""
-<div style="max-width:1000px;margin:auto;">
-
-<img
-src="{imagem_url}"
-style="
-width:100%;
-border-radius:18px;
-margin-bottom:30px;
-box-shadow:0 8px 25px rgba(0,0,0,0.15);
-"
->
-
 <div style="
-font-family:Arial;
-font-size:18px;
+max-width:1000px;
+margin:auto;
+font-family:Arial,sans-serif;
 line-height:1.9;
 color:#222;
 ">
 
-{html}
+{bloco_imagem(imagens[0])}
+"""
 
-</div>
+        contador_imagem = 1
 
-<hr style="margin-top:50px;">
+        for parte in partes:
 
-<p style="
-font-size:14px;
-color:#777;
+            html_final += parte
+
+            if contador_imagem < len(imagens):
+
+                html_final += bloco_imagem(
+                    imagens[contador_imagem]
+                )
+
+                contador_imagem += 1
+
+        html_final += f"""
+
+<hr style="margin-top:60px;">
+
+<div style="
+background:#fafafa;
+padding:25px;
+border-radius:14px;
+margin-top:40px;
 ">
 
-Fonte original:
+<h3 style="margin-top:0;">
+Fonte Original
+</h3>
+
+<p>
 <a href="{noticia['link']}" target="_blank">
 {noticia['titulo']}
 </a>
-
 </p>
+
+</div>
 
 </div>
 """
@@ -318,54 +414,46 @@ Fonte original:
         print(e)
 
         fallback = f"""
-<div style="max-width:1000px;margin:auto;">
+<div style="
+max-width:1000px;
+margin:auto;
+font-family:Arial;
+line-height:1.9;
+">
 
-<img
-src="{imagem_url}"
-style="
-width:100%;
-border-radius:18px;
-margin-bottom:30px;
-box-shadow:0 8px 25px rgba(0,0,0,0.15);
-"
->
+{bloco_imagem(imagens[0])}
 
 <h1>{noticia['titulo']}</h1>
 
 <p>
-O turismo de luxo continua evoluindo
-globalmente com experiências exclusivas,
-hotéis premium e destinos sofisticados.
+O universo do turismo de luxo continua
+evoluindo com experiências sofisticadas,
+hotéis premium e destinos exclusivos.
 </p>
 
-<h2>Experiências Premium</h2>
+{bloco_imagem(imagens[-1])}
+
+<h2>Experiências Exclusivas</h2>
 
 <p>
-Viajantes de alto padrão buscam cada vez mais
-privacidade, conforto e serviços personalizados.
+Viajantes modernos buscam privacidade,
+serviços personalizados e experiências
+memoráveis em destinos paradisíacos.
 </p>
 
-<h2>Destinos Exclusivos</h2>
+<h2>Mercado Premium</h2>
 
 <p>
-Resorts paradisíacos e hotéis sofisticados
-seguem redefinindo o mercado internacional
-de hospitalidade de luxo.
+O segmento de luxo segue crescendo
+globalmente impulsionado por resorts
+sofisticados e hospitalidade cinco estrelas.
 </p>
 
 <h2>Conclusão</h2>
 
 <p>
-O segmento premium permanece crescendo
-globalmente, impulsionado por experiências
-memoráveis e viagens exclusivas.
-</p>
-
-<p>
-Fonte original:
-<a href="{noticia['link']}" target="_blank">
-{noticia['titulo']}
-</a>
+As viagens premium redefinem constantemente
+o conceito de exclusividade e sofisticação.
 </p>
 
 </div>
@@ -375,7 +463,7 @@ Fonte original:
 
 
 # ==========================================
-# PUBLICAR NO BLOGGER
+# PUBLICAR BLOGGER
 # ==========================================
 
 def publicar_post(
@@ -395,7 +483,9 @@ def publicar_post(
         isDraft=False
     ).execute()
 
-    print("\nPOST PUBLICADO:")
+    print("\n================================")
+    print("POST PUBLICADO COM SUCESSO")
+    print("================================")
     print(post["url"])
 
 
@@ -424,16 +514,16 @@ def main():
         print("\nNOTÍCIA ENCONTRADA:")
         print(noticia["titulo"])
 
-        imagem_url = gerar_imagem_url()
+        imagens = gerar_imagens()
 
-        print("\nIMAGEM OK")
+        print("\nIMAGENS OK")
 
         time.sleep(2)
 
         titulo, html = gerar_artigo(
             gemini,
             noticia,
-            imagem_url
+            imagens
         )
 
         print("\nARTIGO GERADO")
@@ -458,6 +548,10 @@ def main():
 
         raise e
 
+
+# ==========================================
+# START
+# ==========================================
 
 if __name__ == "__main__":
     main()
