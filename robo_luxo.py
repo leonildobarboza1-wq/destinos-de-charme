@@ -38,14 +38,14 @@ TEMAS_IMAGENS = [
     "luxury yacht",
 ]
 
-UNSPLASH_ACCESS_KEY = os.environ.get(
-    "UNSPLASH_ACCESS_KEY"
-)
+# ==========================================
+# UNSPLASH
+# ==========================================
 
-if not UNSPLASH_ACCESS_KEY:
-    raise Exception(
-        "UNSPLASH_ACCESS_KEY não encontrada nos Secrets do GitHub"
-    )
+UNSPLASH_ACCESS_KEY = os.environ.get(
+    "UNSPLASH_ACCESS_KEY",
+    ""
+)
 
 # ==========================================
 # BLOGGER AUTH
@@ -91,6 +91,23 @@ def get_gemini_client():
 
 
 # ==========================================
+# LIMPAR HTML
+# ==========================================
+
+def limpar_html(texto):
+
+    texto = re.sub(
+        r"<.*?>",
+        "",
+        texto
+    )
+
+    texto = texto.replace("\n", " ")
+
+    return texto.strip()
+
+
+# ==========================================
 # RSS NEWS
 # ==========================================
 
@@ -120,9 +137,14 @@ def obter_noticia():
                     ""
                 )
 
-                resumo = limpar_html(resumo)
+                resumo = limpar_html(
+                    resumo
+                )
 
                 link = noticia.link
+
+                print("\nNOTÍCIA ENCONTRADA")
+                print(titulo)
 
                 return {
                     "titulo": titulo,
@@ -132,7 +154,7 @@ def obter_noticia():
 
         except Exception as e:
 
-            print(f"ERRO RSS: {url}")
+            print("\nERRO RSS")
             print(e)
 
     raise Exception(
@@ -141,27 +163,42 @@ def obter_noticia():
 
 
 # ==========================================
-# LIMPAR HTML
+# FALLBACK IMAGEM
 # ==========================================
 
-def limpar_html(texto):
+def imagens_fallback():
 
-    texto = re.sub(
-        r"<.*?>",
-        "",
-        texto
-    )
-
-    return texto.strip()
+    return [
+        {
+            "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+            "autor": "Unsplash"
+        },
+        {
+            "url": "https://images.unsplash.com/photo-1493558103817-58b2924bce98",
+            "autor": "Unsplash"
+        },
+        {
+            "url": "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+            "autor": "Unsplash"
+        }
+    ]
 
 
 # ==========================================
-# BUSCAR MÚLTIPLAS IMAGENS
+# BUSCAR IMAGENS
 # ==========================================
 
 def gerar_imagens():
 
     imagens = []
+
+    if not UNSPLASH_ACCESS_KEY:
+
+        print(
+            "\nUNSPLASH NÃO CONFIGURADO"
+        )
+
+        return imagens_fallback()
 
     try:
 
@@ -171,7 +208,9 @@ def gerar_imagens():
                 TEMAS_IMAGENS
             )
 
-            print(f"\nBUSCANDO IMAGEM: {tema}")
+            print(
+                f"\nBUSCANDO IMAGEM: {tema}"
+            )
 
             url = (
                 "https://api.unsplash.com/search/photos"
@@ -197,7 +236,9 @@ def gerar_imagens():
 
             if response.status_code != 200:
 
-                print(response.text)
+                print(
+                    f"ERRO UNSPLASH: {response.status_code}"
+                )
 
                 continue
 
@@ -222,40 +263,31 @@ def gerar_imagens():
 
             time.sleep(1)
 
-        if not imagens:
+        if imagens:
 
-            raise Exception(
-                "Nenhuma imagem encontrada"
+            print(
+                f"\nTOTAL IMAGENS: {len(imagens)}"
             )
 
-        print(
-            f"\nTOTAL DE IMAGENS: {len(imagens)}"
-        )
-
-        return imagens
+            return imagens
 
     except Exception as e:
 
         print("\nERRO IMAGENS")
         print(e)
 
-        return [
-            {
-                "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-                "autor": "Unsplash"
-            }
-        ]
+    return imagens_fallback()
 
 
 # ==========================================
-# HTML IMAGENS
+# BLOCO IMAGEM
 # ==========================================
 
 def bloco_imagem(imagem):
 
     return f"""
 <div style="
-margin:45px 0;
+margin:50px 0;
 text-align:center;
 ">
 
@@ -264,21 +296,44 @@ src="{imagem['url']}"
 alt="Luxury Travel"
 style="
 width:100%;
-border-radius:18px;
-box-shadow:0 10px 30px rgba(0,0,0,0.15);
+border-radius:20px;
+box-shadow:0 10px 35px rgba(0,0,0,0.18);
 "
 >
 
 <p style="
 font-size:13px;
 color:#888;
-margin-top:8px;
+margin-top:10px;
 ">
-Photo: {imagem['autor']} / Unsplash
+Photo by {imagem['autor']} / Unsplash
 </p>
 
 </div>
 """
+
+
+# ==========================================
+# SEO TÍTULO
+# ==========================================
+
+def gerar_titulo_seo(titulo):
+
+    prefixos = [
+        "Descubra",
+        "Conheça",
+        "Veja",
+        "Luxo:",
+        "Exclusivo:",
+        "Turismo Premium:",
+        "Destino de Luxo:"
+    ]
+
+    prefixo = random.choice(
+        prefixos
+    )
+
+    return f"{prefixo} {titulo}"
 
 
 # ==========================================
@@ -291,49 +346,50 @@ def gerar_artigo(
     imagens
 ):
 
+    titulo_seo = gerar_titulo_seo(
+        noticia["titulo"]
+    )
+
     prompt = f"""
 Você é um redator profissional especialista em:
 
 - turismo de luxo
-- resorts premium
-- hotéis sofisticados
-- lifestyle internacional
-- viagens exclusivas
+- hotéis premium
+- lifestyle sofisticado
+- destinos exclusivos
+- experiências internacionais
 
 Crie um artigo PREMIUM em HTML.
 
 OBJETIVO:
-Criar um conteúdo digno de revista internacional de luxo.
+Criar um conteúdo estilo revista internacional.
 
-REGRAS IMPORTANTES:
+REGRAS:
 
 - mínimo 1500 palavras
-- SEO avançado
-- tom sofisticado
-- texto extremamente humanizado
-- estrutura estilo MAGAZINE
-- linguagem elegante
-- storytelling profissional
+- SEO extremamente forte
+- estrutura estilo magazine
+- linguagem sofisticada
+- texto altamente humanizado
+- storytelling elegante
 - usar H2 e H3
 - HTML puro
 - NÃO use markdown
-- incluir emoção e exclusividade
-- criar subtítulos fortes
-- incluir experiências premium
-- incluir tendências de turismo de luxo
-- incluir dicas sofisticadas
 - criar leitura agradável
+- criar subtítulos fortes
+- incluir tendências do turismo de luxo
+- incluir dicas sofisticadas
+- incluir experiências premium
+- incluir sensação de exclusividade
 - finalizar com conclusão elegante
-- não repetir frases
-- criar aparência profissional
 
 TÍTULO:
-{noticia['titulo']}
+{titulo_seo}
 
 RESUMO:
 {noticia['resumo']}
 
-LINK ORIGINAL:
+LINK:
 {noticia['link']}
 """
 
@@ -349,18 +405,19 @@ LINK ORIGINAL:
         if not html:
 
             raise Exception(
-                "Resposta vazia da IA"
+                "Resposta vazia"
             )
 
         partes = html.split("</h2>")
 
         html_final = f"""
 <div style="
-max-width:1000px;
+max-width:1050px;
 margin:auto;
 font-family:Arial,sans-serif;
-line-height:1.9;
+line-height:1.95;
 color:#222;
+font-size:19px;
 ">
 
 {bloco_imagem(imagens[0])}
@@ -382,16 +439,14 @@ color:#222;
 
         html_final += f"""
 
-<hr style="margin-top:60px;">
-
 <div style="
+margin-top:60px;
+padding:30px;
 background:#fafafa;
-padding:25px;
-border-radius:14px;
-margin-top:40px;
+border-radius:18px;
 ">
 
-<h3 style="margin-top:0;">
+<h3>
 Fonte Original
 </h3>
 
@@ -406,7 +461,7 @@ Fonte Original
 </div>
 """
 
-        return noticia["titulo"], html_final
+        return titulo_seo, html_final
 
     except Exception as e:
 
@@ -419,47 +474,53 @@ max-width:1000px;
 margin:auto;
 font-family:Arial;
 line-height:1.9;
+font-size:19px;
 ">
 
 {bloco_imagem(imagens[0])}
 
-<h1>{noticia['titulo']}</h1>
+<h1>{titulo_seo}</h1>
 
 <p>
-O universo do turismo de luxo continua
-evoluindo com experiências sofisticadas,
-hotéis premium e destinos exclusivos.
+O turismo de luxo continua crescendo
+globalmente com experiências exclusivas,
+resorts premium e destinos paradisíacos.
 </p>
 
 {bloco_imagem(imagens[-1])}
 
-<h2>Experiências Exclusivas</h2>
+<h2>Experiências Premium</h2>
 
 <p>
-Viajantes modernos buscam privacidade,
-serviços personalizados e experiências
-memoráveis em destinos paradisíacos.
+Viajantes sofisticados buscam conforto,
+privacidade e experiências memoráveis
+em hotéis e resorts de alto padrão.
 </p>
 
-<h2>Mercado Premium</h2>
+<h2>Destinos Exclusivos</h2>
 
 <p>
-O segmento de luxo segue crescendo
-globalmente impulsionado por resorts
-sofisticados e hospitalidade cinco estrelas.
+O mercado internacional de turismo premium
+segue redefinindo o conceito de hospitalidade.
 </p>
 
 <h2>Conclusão</h2>
 
 <p>
-As viagens premium redefinem constantemente
-o conceito de exclusividade e sofisticação.
+O universo das viagens sofisticadas continua
+evoluindo com novas tendências de luxo.
+</p>
+
+<p>
+<a href="{noticia['link']}" target="_blank">
+Fonte Original
+</a>
 </p>
 
 </div>
 """
 
-        return noticia["titulo"], fallback
+        return titulo_seo, fallback
 
 
 # ==========================================
@@ -484,7 +545,7 @@ def publicar_post(
     ).execute()
 
     print("\n================================")
-    print("POST PUBLICADO COM SUCESSO")
+    print("POST PUBLICADO")
     print("================================")
     print(post["url"])
 
@@ -510,9 +571,6 @@ def main():
         print("GEMINI OK")
 
         noticia = obter_noticia()
-
-        print("\nNOTÍCIA ENCONTRADA:")
-        print(noticia["titulo"])
 
         imagens = gerar_imagens()
 
