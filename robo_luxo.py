@@ -455,6 +455,60 @@ def publicar_post(service, titulo, html):
     print(f"POST PUBLICADO NA CATEGORIA: {categoria_escolhida}")
     print("================================")
     print(post["url"])
+# ==========================================
+# MAIN
+# ==========================================
 
+def main():
+
+    try:
+
+        print("\n================================")
+        print("INICIANDO ROBÔ PREMIUM")
+        print("================================")
+
+        service = get_blogger_service()
+
+        print("\nBLOGGER OK")
+
+        gemini = get_gemini_client()
+
+        print("GEMINI OK")
+
+        noticia = obter_noticia()
+
+        imagens = gerar_imagens()
+
+        print("\nIMAGENS OK")
+
+        time.sleep(2)
+
+        titulo, html = gerar_artigo(
+            gemini,
+            noticia,
+            imagens
+        )
+
+        print("\nARTIGO GERADO")
+
+        publicar_post(
+            service,
+            titulo,
+            html
+        )
+
+        print("\n================================")
+        print("PROCESSO FINALIZADO")
+        print("================================")
+
+    except Exception as e:
+
+        print("\n================================")
+        print("ERRO CRÍTICO")
+        print("================================")
+
+        print(e)
+
+        raise e
 if __name__ == "__main__":
     main()
