@@ -37,7 +37,7 @@ TEMAS_IMAGENS = [
     "exclusive resort",
     "luxury yacht",
 ]
-
+CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
 # ==========================================
 # UNSPLASH
 # ==========================================
@@ -340,276 +340,121 @@ def gerar_titulo_seo(titulo):
 # GERAR ARTIGO IA
 # ==========================================
 
-def gerar_artigo(
-    cliente,
-    noticia,
-    imagens
-):
-
-    titulo_seo = gerar_titulo_seo(
-        noticia["titulo"]
-    )
+def gerar_artigo(cliente, noticia, imagens):
+    titulo_seo = gerar_titulo_seo(noticia["titulo"])
 
     prompt = f"""
-Você é um redator profissional especialista em:
-
-- turismo de luxo
-- hotéis premium
-- lifestyle sofisticado
-- destinos exclusivos
-- experiências internacionais
-
-Crie um artigo PREMIUM em HTML.
+Você é um redator profissional especialista em turismo de luxo, hotéis premium e resorts exclusivos.
+Crie um artigo PREMIUM em HTML puro, sem usar nenhuma marcação Markdown (nunca use ```html ou asteriscos).
 
 OBJETIVO:
 Criar um conteúdo estilo revista internacional.
 
 REGRAS:
-
-- mínimo 1500 palavras
+- Mínimo 1000 palavras
 - SEO extremamente forte
-- estrutura estilo magazine
-- linguagem sofisticada
-- texto altamente humanizado
-- storytelling elegante
-- usar H2 e H3
-- HTML puro
-- NÃO use markdown
-- criar leitura agradável
-- criar subtítulos fortes
-- incluir tendências do turismo de luxo
-- incluir dicas sofisticadas
-- incluir experiências premium
-- incluir sensação de exclusividade
-- finalizar com conclusão elegante
+- Use títulos H2 e H3 para organizar o texto
+- Linguagem sofisticada e storytelling elegante
+- NÃO use blocos de código ou markdown, escreva apenas as tags HTML diretamente.
 
 TÍTULO:
 {titulo_seo}
 
 RESUMO:
 {noticia['resumo']}
-
-LINK:
-{noticia['link']}
 """
 
     try:
-
         resposta = cliente.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt
         )
 
         html = resposta.text
-
         if not html:
+            raise Exception("Resposta vazia")
 
-            raise Exception(
-                "Resposta vazia"
-            )
+       # LIMPEZA CRUCIAL: Remove marcações markdown indesejadas que a IA gera por padrão
+        html = re.sub(r"```html", "", html)
+        html = re.sub(r"```", "", html)
+        html = html.strip()
 
-        partes = html.split("</h2>")
-
+        # Montagem do esqueleto do post garantindo o topo limpo
         html_final = f"""
-<div style="
-max-width:1050px;
-margin:auto;
-font-family:Arial,sans-serif;
-line-height:1.95;
-color:#222;
-font-size:19px;
-">
-
+<div style="max-width:1050px; margin:auto; font-family:Arial,sans-serif; line-height:1.95; color:#222; font-size:19px;">
 {bloco_imagem(imagens[0])}
 """
+        
+        # Tenta quebrar por H2 para distribuir as imagens restantes de forma elegante
+        partes = html.split("</h2>")
+        if len(partes) > 1:
+            contador_imagem = 1
+            for parte in partes:
+                html_final += parte + "</h2>" if not parte.endswith("</h2>") else parte
+                if contador_imagem < len(imagens) and parte != partes[-1]:
+                    html_final += bloco_imagem(imagens[contador_imagem])
+                    contador_imagem += 1
+        else:
+            # Caso a IA não use H2, apenas joga o HTML e uma imagem de fechamento
+            html_final += html
+            if len(imagens) > 1:
+                html_final += bloco_imagem(imagens[1])
 
-        contador_imagem = 1
-
-        for parte in partes:
-
-            html_final += parte
-
-            if contador_imagem < len(imagens):
-
-                html_final += bloco_imagem(
-                    imagens[contador_imagem]
-                )
-
-                contador_imagem += 1
-
+        # Seção de créditos/fonte no final do post
         html_final += f"""
-
-<div style="
-margin-top:60px;
-padding:30px;
-background:#fafafa;
-border-radius:18px;
-">
-
-<h3>
-Fonte Original
-</h3>
-
-<p>
-<a href="{noticia['link']}" target="_blank">
-{noticia['titulo']}
-</a>
-</p>
-
+<div style="margin-top:60px; padding:30px; background:#fafafa; border-radius:18px;">
+<h3>Fonte Original</h3>
+<p><a href="{noticia['link']}" target="_blank">{noticia['titulo']}</a></p>
 </div>
-
 </div>
 """
-
         return titulo_seo, html_final
 
     except Exception as e:
-
-        print("\nERRO GEMINI")
+        print("\nERRO GEMINI - Usando Fallback")
         print(e)
-
+        
         fallback = f"""
-<div style="
-max-width:1000px;
-margin:auto;
-font-family:Arial;
-line-height:1.9;
-font-size:19px;
-">
-
+<div style="max-width:1000px; margin:auto; font-family:Arial; line-height:1.9; font-size:19px;">
 {bloco_imagem(imagens[0])}
-
 <h1>{titulo_seo}</h1>
-
-<p>
-O turismo de luxo continua crescendo
-globalmente com experiências exclusivas,
-resorts premium e destinos paradisíacos.
-</p>
-
+<p>O turismo de luxo continua crescendo globalmente com experiências exclusivas, resorts premium e destinos paradisíacos.</p>
 {bloco_imagem(imagens[-1])}
-
 <h2>Experiências Premium</h2>
-
-<p>
-Viajantes sofisticados buscam conforto,
-privacidade e experiências memoráveis
-em hotéis e resorts de alto padrão.
-</p>
-
+<p>Viajantes sofisticados buscam conforto, privacidade e experiências memoráveis em hotéis e resorts de alto padrão.</p>
 <h2>Destinos Exclusivos</h2>
-
-<p>
-O mercado internacional de turismo premium
-segue redefinindo o conceito de hospitalidade.
-</p>
-
+<p>O mercado internacional de turismo premium segue redefinindo o conceito de hospitalidade.</p>
 <h2>Conclusão</h2>
-
-<p>
-O universo das viagens sofisticadas continua
-evoluindo com novas tendências de luxo.
-</p>
-
-<p>
-<a href="{noticia['link']}" target="_blank">
-Fonte Original
-</a>
-</p>
-
+<p>O universo das viagens sofisticadas continua evoluindo com novas tendências de luxo.</p>
+<p><a href="{noticia['link']}" target="_blank">Fonte Original</a></p>
 </div>
 """
-
         return titulo_seo, fallback
-
 
 # ==========================================
 # PUBLICAR BLOGGER
 # ==========================================
 
-def publicar_post(
-    service,
-    titulo,
-    html
-):
-
+def publicar_post(service, titulo, html):
+    # Seleciona uma categoria aleatória compatível com os botões do seu menu atual
+    categoria_escolhida = random.choice(CATEGORIAS_BLOG)
+    
     body = {
         "title": titulo,
-        "content": html
+        "content": html,
+        "labels": [categoria_escolhida] # ESSA LINHA ATIVA OS BOTÕES DO SEU MENU
     }
 
     post = service.posts().insert(
         blogId=BLOG_ID,
         body=body,
-        isDraft=False
+        isDraft=False # Altere para True se quiser testar primeiro como Rascunho
     ).execute()
 
     print("\n================================")
-    print("POST PUBLICADO")
+    print(f"POST PUBLICADO NA CATEGORIA: {categoria_escolhida}")
     print("================================")
     print(post["url"])
-
-
-# ==========================================
-# MAIN
-# ==========================================
-
-def main():
-
-    try:
-
-        print("\n================================")
-        print("INICIANDO ROBÔ PREMIUM")
-        print("================================")
-
-        service = get_blogger_service()
-
-        print("\nBLOGGER OK")
-
-        gemini = get_gemini_client()
-
-        print("GEMINI OK")
-
-        noticia = obter_noticia()
-
-        imagens = gerar_imagens()
-
-        print("\nIMAGENS OK")
-
-        time.sleep(2)
-
-        titulo, html = gerar_artigo(
-            gemini,
-            noticia,
-            imagens
-        )
-
-        print("\nARTIGO GERADO")
-
-        publicar_post(
-            service,
-            titulo,
-            html
-        )
-
-        print("\n================================")
-        print("PROCESSO FINALIZADO")
-        print("================================")
-
-    except Exception as e:
-
-        print("\n================================")
-        print("ERRO CRÍTICO")
-        print("================================")
-
-        print(e)
-
-        raise e
-
-
-# ==========================================
-# START
-# ==========================================
 
 if __name__ == "__main__":
     main()
