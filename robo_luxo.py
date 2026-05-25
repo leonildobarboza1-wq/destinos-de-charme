@@ -201,6 +201,7 @@ REGRAS OBRIGATÓRIAS:
 2. CONTEÚDO: Não faça um resumo curto. Desenvolva um texto longo (mínimo de 600 palavras), fluido, reescrevendo os fatos com sinônimos e termos sofisticados.
 3. FORMATO: Retorne apenas tags HTML puras (<p>, <h2>). Nunca use marcações Markdown (como asteriscos ** ou blocos de ```html).
 4. IDIOMA: Proibido manter frases ou títulos em inglês. Tudo deve ser localizado para o português.
+5. DATELINE: Inicie o corpo do texto obrigatoriamente com uma linha em itálico contendo a cidade/país do fato em caixa alta e o tempo estimado de leitura baseado no tamanho do texto (Ex: <i>ZURIQUE, SUÍÇA — Leitura de 4 minutos</i>), seguido por uma quebra de linha <br/><br/> antes de começar o primeiro parágrafo.
 """
 
     try:
