@@ -33,7 +33,7 @@ TEMAS_IMAGENS = [
     "luxury yoga resort", 
     "swiss alps luxury hotel view",
     "luxury spa nature view"
-]]
+]
 
 CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
 
