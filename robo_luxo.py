@@ -204,12 +204,19 @@ def bloco_imagem(imagem):
 # ==========================================
 
 def gerar_titulo_seo(titulo):
-    prefixos = [
-        "Descubra", "Conheça", "Veja", "Luxo:", 
-        "Exclusivo:", "Turismo Premium:", "Destino de Luxo:"
-    ]
-    prefixo = random.choice(prefixos)
-    return f"{prefixo} {titulo}"
+    # Se o título original contiver muitas palavras em inglês, cria uma chamada premium em português
+    if any(word in titulo.lower() for word in ['inside', 'test', 'review', 'lives', 'hype', 'luxury', 'opens']):
+        opcoes_luxo = [
+            "Tendências do Mercado de Luxo Internacional",
+            "Bastidores do Turismo de Alto Padrão Global",
+            "Experiências Exclusivas no Cenário Premium Mundial",
+            "O Estilo de Vida Ultra-Luxury e Destinos de Elite",
+            "Inovação e Sofisticação no Mercado de Alto Luxo"
+        ]
+        return random.choice(opcoes_luxo)
+    
+    prefixos = ["Descubra:", "Conheça:", "Veja:", "Luxo:", "Exclusivo:"]
+    return f"{random.choice(prefixos)} {titulo}"
 
 # ==========================================
 # GERAR ARTIGO IA
