@@ -2,7 +2,6 @@ name: Automacao Blogger Luxo
 
 on:
   workflow_dispatch:
-
   schedule:
     - cron: "0 */6 * * *"
 
@@ -29,9 +28,12 @@ jobs:
           pip install requests
           pip install feedparser
           pip install google-genai
+          pip install beautifulsoup4
+          pip install lxml
 
       - name: Executar robo
         env:
           GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
         run: python robo_luxo.py
