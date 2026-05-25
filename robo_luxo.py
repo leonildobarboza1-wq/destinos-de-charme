@@ -24,19 +24,14 @@ RSS_FEEDS = [
 ]
 
 TEMAS_IMAGENS = [
-    "luxury hotel",
-    "luxury resort",
-    "maldives resort",
-    "private island luxury",
-    "luxury beach resort",
-    "luxury suite",
-    "luxury vacation",
-    "luxury destination",
-    "luxury travel lifestyle",
-    "five star hotel",
-    "exclusive resort",
-    "luxury yacht",
+    "luxury hotel room", 
+    "supercar lifestyle", 
+    "luxury yacht charter", 
+    "luxury villa architecture", 
+    "swiss Alps resort luxury", 
+    "fine dining restaurant"
 ]
+
 CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
 
 # ==========================================
@@ -60,7 +55,7 @@ def get_blogger_service():
     return service
 
 # ==========================================
-# GEMINI
+# GEMINI AUTH
 # ==========================================
 
 def get_gemini_client():
@@ -136,39 +131,50 @@ def gerar_imagens(titulo_noticia):
     imagens = []
 
     if not UNSPLASH_ACCESS_KEY:
-        print("\nUNSPLASH NÃO CONFIGURADO")
+        print("\nUNSPLASH NÃO CONFIGURADO - Usando Fallback de Imagens")
         return imagens_fallback()
 
     try:
-        palavras_chave = [palavra for word in re.findall(r'\b[A-ZÀ-Úa-zà-ú]{4,}\b', titulo_noticia) 
-                          if (palavra := word.lower()) not in ['para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive']]
+        titulo_limpo = titulo_noticia.replace("'s", "").replace("’s", "")
+        palavras = re.findall(r'\b[A-Za-zÀ-Úà-ú]{4,}\b', titulo_limpo)
         
-        termo_busca = " ".join(palavras_chave[:3]) if palavras_chave else random.choice(TEMAS_IMAGENS)
+        stop_words = [
+            'para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive', 'luxury', 
+            'inside', 'this', 'that', 'from', 'with', 'your', 'about', 'report', 'forbes'
+        ]
+        
+        palavras_chave = [p.lower() for p in palavras if p.lower() not in stop_words]
+        
+        if palavras_chave:
+            termo_busca = " ".join(palavras_chave[:2])
+        else:
+            termo_busca = random.choice(TEMAS_IMAGENS)
 
-        for i in range(3):
-            print(f"\nBUSCANDO IMAGEM ESPECÍFICA NO UNSPLASH: {termo_busca}")
+        print(f"\n[UNSPLASH] Buscando imagens para o termo: '{termo_busca}'")
 
-            url = "https://api.unsplash.com/search/photos"
-            headers = {"Accept-Version": "v1"}
-            params = {
-                "query": termo_busca,
-                "orientation": "landscape",
-                "per_page": 15,
-                "client_id": UNSPLASH_ACCESS_KEY
-            }
+        url = "https://api.unsplash.com/search/photos"
+        headers = {"Accept-Version": "v1"}
+        params = {
+            "query": termo_busca,
+            "orientation": "landscape",
+            "per_page": 10,
+            "client_id": UNSPLASH_ACCESS_KEY
+        }
 
-            response = requests.get(url, headers=headers, params=params, timeout=30)
+        response = requests.get(url, headers=headers, params=params, timeout=30)
 
-            if response.status_code == 200:
-                data = response.json()
-                resultados = data.get("results", [])
-                if resultados:
-                    imagem = random.choice(resultados)
+        if response.status_code == 200:
+            data = response.json()
+            resultados = data.get("results", [])
+            if resultados:
+                amostra = random.sample(resultados, min(len(resultados), 3))
+                for imagem in amostra:
                     imagens.append({
                         "url": imagem["urls"]["regular"],
                         "autor": imagem["user"]["name"]
                     })
-            time.sleep(1)
+                    
+        time.sleep(1)
 
         if len(imagens) < 2:
             imagens.extend(imagens_fallback())
@@ -181,7 +187,7 @@ def gerar_imagens(titulo_noticia):
         return imagens_fallback()
 
 # ==========================================
-# BLOCO IMAGEM (Padrão do Blogger para feeds)
+# BLOCO IMAGEM (Alimenta o Card do Feed)
 # ==========================================
 
 def bloco_imagem(imagem):
@@ -206,7 +212,7 @@ def gerar_titulo_seo(titulo):
     return f"{prefixo} {titulo}"
 
 # ==========================================
-# GERAR ARTIGO IA (CORRIGIDO)
+# GERAR ARTIGO IA
 # ==========================================
 
 def gerar_artigo(cliente, noticia, imagens):
@@ -232,31 +238,28 @@ Gere o artigo completo em Português.
 """
 
     try:
-        # Chamada oficial e correta para a biblioteca google-genai
+        # Tenta rodar com o 1.5-flash caso o limite do 2.0 tenha estourado na conta free
         resposta = cliente.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-1.5-flash",
             contents=prompt
         )
 
         html = resposta.text
         if not html:
-            raise Exception("A resposta da IA veio completamente vazia.")
+            raise Exception("A resposta da IA veio vazia.")
 
-        # Limpeza agressiva contra qualquer Markdown que a IA teime em colocar
         html = re.sub(r"```html", "", html)
         html = re.sub(r"```", "", html)
-        html = html.replace("**", "") # Remove asteriscos perdidos
+        html = html.replace("**", "")
         html = html.strip()
 
-        # Montagem do corpo da postagem (A primeira imagem ABRE o post para o feed capturar)
+        # Primeira imagem no topo para alimentar o feed do Blogger
         html_final = bloco_imagem(imagens[0])
         
-        # Distribui as outras imagens ao longo dos subtítulos (<h2>) gerados pela IA
         partes = html.split("</h2>")
         if len(partes) > 1:
             contador_imagem = 1
             for parte in partes:
-                # Reconstrói a tag <h2> após o split
                 html_final += parte + "</h2>" if not parte.endswith("</h2>") else parte
                 if contador_imagem < len(imagens) and parte != partes[-1]:
                     html_final += bloco_imagem(imagens[contador_imagem])
@@ -266,7 +269,6 @@ Gere o artigo completo em Português.
             if len(imagens) > 1:
                 html_final += bloco_imagem(imagens[1])
 
-        # Rodapé elegante com link para a fonte
         html_final += f"""
 <div style="margin-top: 50px; padding: 20px; border-top: 1px solid #e5e5e5;">
   <p style="font-size: 14px; color: #666; font-style: italic;">
@@ -277,7 +279,6 @@ Gere o artigo completo em Português.
         return titulo_seo, html_final
 
     except Exception as e:
-        # Se cair aqui, vamos printar o erro real no terminal para você ver o que quebrou!
         print(f"\n[ALERTA] A IA FALHOU! Erro retornado: {e}")
         print("Usando o Fallback de segurança para não interromper o robô...")
         
@@ -293,9 +294,32 @@ Gere o artigo completo em Português.
 """
         return titulo_seo, fallback
 
+# ==========================================
+# PUBLICAR BLOGGER (RECOLOCADA NO LUGAR CORRETO)
+# ==========================================
+
+def publicar_post(service, titulo, html):
+    categoria_escolhida = random.choice(CATEGORIAS_BLOG)
+    
+    body = {
+        "title": titulo,
+        "content": html,
+        "labels": [categoria_chosen := categoria_escolhida]
+    }
+
+    post = service.posts().insert(
+        blogId=BLOG_ID,
+        body=body,
+        isDraft=False
+    ).execute()
+
+    print("\n================================")
+    print(f"POST PUBLICADO NA CATEGORIA: {categoria_chosen}")
+    print("================================")
+    print(post["url"])
 
 # ==========================================
-# MAIN (REVISADA)
+# MAIN
 # ==========================================
 
 def main():
@@ -305,15 +329,14 @@ def main():
         print("================================")
 
         service = get_blogger_service()
-        print("\nBLOGGER OK")
+        print("BLOGGER OK")
 
-        # Correção na inicialização do cliente Gemini
         gemini = get_gemini_client()
         print("GEMINI OK")
 
         noticia = obter_noticia()
         imagens = gerar_imagens(noticia["titulo"]) 
-        print("\nIMAGENS OK")
+        print("IMAGENS OK")
         
         time.sleep(2)
 
@@ -322,7 +345,7 @@ def main():
             noticia,
             imagens
         )
-        print("\nARTIGO GERADO COM SUCESSO")
+        print("ARTIGO GERADO COM SUCESSO")
 
         publicar_post(
             service,
@@ -331,7 +354,7 @@ def main():
         )
 
         print("\n================================")
-        print("PROCESSO FINALIZADO")
+        print("PROCESSO FINALIZADO SEM ERROS")
         print("================================")
 
     except Exception as e:
