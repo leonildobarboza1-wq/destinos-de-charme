@@ -140,8 +140,8 @@ def gerar_imagens(titulo_noticia):
         return imagens_fallback()
 
     try:
-        palavras_chave = [palavra for palavra in re.findall(r'\b[A-ZÀ-Úa-zà-ú]{4,}\b', titulo_noticia) 
-                          if palavra.lower() not in ['para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive']]
+        palavras_chave = [palavra for word in re.findall(r'\b[A-ZÀ-Úa-zà-ú]{4,}\b', titulo_noticia) 
+                          if (palavra := word.lower()) not in ['para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive']]
         
         termo_busca = " ".join(palavras_chave[:3]) if palavras_chave else random.choice(TEMAS_IMAGENS)
 
@@ -181,16 +181,15 @@ def gerar_imagens(titulo_noticia):
         return imagens_fallback()
 
 # ==========================================
-# BLOCO IMAGEM
+# BLOCO IMAGEM (Padrão do Blogger para feeds)
 # ==========================================
 
 def bloco_imagem(imagem):
     return f"""
-<div style="margin:50px 0; text-align:center;">
-<img src="{imagem['url']}" alt="Luxury Travel" style="width:100%; border-radius:20px; box-shadow:0 10px 35px rgba(0,0,0,0.18);">
-<p style="font-size:13px; color:#888; margin-top:10px;">
-Photo by {imagem['autor']} / Unsplash
-</p>
+<div class="separator" style="clear: both; text-align: center; margin: 30px 0;">
+  <img src="{imagem['url']}" alt="Luxury Travel" style="width: 100%; height: auto; border-radius: 8px; max-width: 100%;"/>
+  <br/>
+  <span style="font-size: 12px; color: #999; letter-spacing: 1px;">Photo by {imagem['autor']} / Unsplash</span>
 </div>
 """
 
@@ -214,19 +213,19 @@ def gerar_artigo(cliente, noticia, imagens):
     titulo_seo = gerar_titulo_seo(noticia["titulo"])
 
     prompt = f"""
-Você é um journalist de turismo internacional de altíssimo padrão e redator-chefe de uma revista de estilo de vida de luxo.
-Sua missão é ler o fato abaixo e criar uma grande reportagem de cobertura exclusiva, totalmente inédita e autoral.
+Você é um jornalista de turismo internacional de altíssimo padrão e redator-chefe de uma revista de estilo de vida de luxo.
+Sua missão é ler o fato abaixo e criar uma reportagem de cobertura exclusiva, totalmente inédita e autoral.
 
 CONTEXTO DA NOTÍCIA:
 Título original: {noticia['titulo']}
 Fatos/Resumo: {noticia['resumo']}
 
-REGRAS CRUCIAIS DE ESCRITA (PARA EVITAR PLÁGIO E ARTIFICIALIDADE):
-1. Escreva um artigo completo e robusto em HTML puro (mínimo de 50 a 60 linhas de parágrafos de conteúdo denso, aproximadamente 1000 palavras).
-2. Não copie frases da fonte original. Reescreva a história com um tom sofisticado, glamouroso, focado no público ultra-wealthy.
-3. Desenvolva o cenário: Descreva como deve ser a experiência no local, a arquitetura, o serviço impecável e os detalhes que encantam viajantes de alto padrão. Expandir o assunto de forma inteligente.
-4. Organize o texto utilizando cabeçalhos <h2> e <h3> elegantes ao longo da leitura.
-5. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Escreva apenas o texto envolto nas tags HTML diretamente.
+REGRAS CRUCIAIS DE ESCRITA:
+1. Escreva um artigo completo e robusto utilizando tags HTML puras (<p>, <h2>, <h3>). 
+2. NÃO use tags de estrutura global como <html>, <body>, <h1> ou <div> engessando estilos. Foque apenas nos parágrafos e cabeçalhos internos.
+3. Não copie frases da fonte original. Reescreva com um tom sofisticado, glamouroso, focado no público de alto padrão (VIP/Ultra-wealthy).
+4. Desenvolva o cenário, arquitetura, serviços e detalhes ricos para expandir o assunto de forma inteligente.
+5. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Retorne apenas o texto cru com as tags HTML permitidas.
 
 Gere o artigo completo em Português.
 """
@@ -241,15 +240,14 @@ Gere o artigo completo em Português.
         if not html:
             raise Exception("Resposta vazia")
 
+        # Limpeza de possíveis resíduos de markdown da IA
         html = re.sub(r"```html", "", html)
         html = re.sub(r"```", "", html)
         html = html.strip()
 
-        html_final = f"""
-<div style="max-width:1050px; margin:auto; font-family:Arial,sans-serif; line-height:2.0; color:#1a1a1a; font-size:19px; text-align: justify;">
-{bloco_imagem(imagens[0])}
-<h1 style="font-size:36px; margin-bottom:30px; color:#111; line-height:1.3;">{titulo_seo}</h1>
-"""
+        # Montagem do corpo da postagem respeitando a arquitetura do Tema do Blogger
+        # A primeira imagem DEVE ser a primeira coisa no código HTML para o feed capturar.
+        html_final = bloco_imagem(imagens[0])
         
         partes = html.split("</h2>")
         if len(partes) > 1:
@@ -264,11 +262,12 @@ Gere o artigo completo em Português.
             if len(imagens) > 1:
                 html_final += bloco_imagem(imagens[1])
 
+        # Seção de créditos e link externo elegante
         html_final += f"""
-<div style="margin-top:60px; padding:30px; background:#fcfcfc; border-top:1px solid #eee; border-radius:18px;">
-<h4 style="color:#777; text-transform:uppercase; letter-spacing:1px; font-size:13px; margin-bottom:10px;">Leitura Recomendada</h4>
-<p style="font-size:16px;">Confira também os detalhes da cobertura oficial na <a href="{noticia['link']}" target="_blank" style="color:#111; font-weight:bold; text-decoration:underline;">Fonte Original ({noticia['titulo']})</a>.</p>
-</div>
+<div style="margin-top: 50px; padding: 20px; border-top: 1px solid #e5e5e5;">
+  <p style="font-size: 14px; color: #666; font-style: italic;">
+    Com informações complementares da cobertura oficial da <a href="{noticia['link']}" target="_blank" style="color: #000; font-weight: 600; text-decoration: underline;">Fonte Original ({noticia['titulo']})</a>.
+  </p>
 </div>
 """
         return titulo_seo, html_final
@@ -277,20 +276,16 @@ Gere o artigo completo em Português.
         print("\nERRO GEMINI - Usando Fallback")
         print(e)
         
+        # Fallback limpo que herda o CSS do tema perfeitamente
         fallback = f"""
-<div style="max-width:1000px; margin:auto; font-family:Arial; line-height:1.9; font-size:19px;">
 {bloco_imagem(imagens[0])}
-<h1 style="font-size:36px; margin-bottom:30px; color:#111; line-height:1.3;">{titulo_seo}</h1>
-<p>O turismo de luxo continua crescendo globalmente com experiências exclusivas, resorts premium e destinos paradisíacos.</p>
+<p>O turismo de luxo continua crescendo globalmente com experiências exclusivas, resorts premium e destinos paradisíacos que redefinem o mercado de alto padrão.</p>
 {bloco_imagem(imagens[-1])}
-<h2>Experiências Premium</h2>
-<p>Viajantes sofisticados buscam conforto, privacidade e experiências memoráveis em hotéis e resorts de alto padrão.</p>
-<h2>Destinos Exclusivos</h2>
-<p>O mercado internacional de turismo premium segue redefinindo o conceito de hospitalidade.</p>
-<h2>Conclusão</h2>
-<p>O universo das viagens sofisticadas continua evoluindo com novas tendências de luxo.</p>
-<p><a href="{noticia['link']}" target="_blank">Fonte Original</a></p>
-</div>
+<h2>Experiências Extraordinárias e Hospitalidade Premium</h2>
+<p>Viajantes sofisticados buscam o mais alto nível de conforto, privacidade total e experiências sob medida criadas por hotéis e resorts de elite mundiais.</p>
+<h2>Destinos Exclusivos Globais</h2>
+<p>O mercado internacional de turismo premium segue ditando fortes tendências e expandindo o conceito clássico de hospitalidade de alto luxo.</p>
+<p style="margin-top: 40px;"><a href="{noticia['link']}" target="_blank" style="font-weight: bold; text-decoration: underline;">Acesse a cobertura completa na fonte.</a></p>
 """
         return titulo_seo, fallback
 
@@ -331,7 +326,7 @@ def main():
         service = get_blogger_service()
         print("\nBLOGGER OK")
 
-        gemini = get_gemini_client()
+        gemini = get_get_gemini_client() if 'get_get_gemini_client' in globals() else get_gemini_client()
         print("GEMINI OK")
 
         noticia = obter_noticia()
