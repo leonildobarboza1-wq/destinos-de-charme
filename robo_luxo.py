@@ -206,7 +206,7 @@ def gerar_titulo_seo(titulo):
     return f"{prefixo} {titulo}"
 
 # ==========================================
-# GERAR ARTIGO IA
+# GERAR ARTIGO IA (CORRIGIDO)
 # ==========================================
 
 def gerar_artigo(cliente, noticia, imagens):
@@ -214,23 +214,25 @@ def gerar_artigo(cliente, noticia, imagens):
 
     prompt = f"""
 Você é um jornalista de turismo internacional de altíssimo padrão e redator-chefe de uma revista de estilo de vida de luxo.
-Sua missão é ler o fato abaixo e criar uma reportagem de cobertura exclusiva, totalmente inédita e autoral.
+Sua missão é ler o fato abaixo e criar uma reportagem de cobertura exclusiva, detalhada, totalmente inédita e autoral.
 
 CONTEXTO DA NOTÍCIA:
 Título original: {noticia['titulo']}
 Fatos/Resumo: {noticia['resumo']}
 
 REGRAS CRUCIAIS DE ESCRITA:
-1. Escreva um artigo completo e robusto utilizando tags HTML puras (<p>, <h2>, <h3>). 
-2. NÃO use tags de estrutura global como <html>, <body>, <h1> ou <div> engessando estilos. Foque apenas nos parágrafos e cabeçalhos internos.
-3. Não copie frases da fonte original. Reescreva com um tom sofisticado, glamouroso, focado no público de alto padrão (VIP/Ultra-wealthy).
-4. Desenvolva o cenário, arquitetura, serviços e detalhes ricos para expandir o assunto de forma inteligente.
-5. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Retorne apenas o texto cru com as tags HTML permitidas.
+1. Escreva um artigo LONGO, completo e robusto (mínimo de 800 a 1000 palavras). Quero parágrafos densos e profundos.
+2. Utilize apenas tags HTML puras (<p>, <h2>, <h3>). 
+3. NÃO use tags globais como <html>, <body>, <h1> ou <div> com estilos engessados.
+4. Não copie frases da fonte original. Reescreva tudo com um tom sofisticado, glamouroso, focado no público Ultra-wealthy.
+5. Desenvolva extensamente o cenário, a arquitetura dos locais mencionados, o nível do serviço VIP e detalhes que expandam o assunto de forma inteligente.
+6. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Retorne APENAS o texto cru com as tags HTML misturadas.
 
 Gere o artigo completo em Português.
 """
 
     try:
+        # Chamada oficial e correta para a biblioteca google-genai
         resposta = cliente.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt
@@ -238,21 +240,23 @@ Gere o artigo completo em Português.
 
         html = resposta.text
         if not html:
-            raise Exception("Resposta vazia")
+            raise Exception("A resposta da IA veio completamente vazia.")
 
-        # Limpeza de possíveis resíduos de markdown da IA
+        # Limpeza agressiva contra qualquer Markdown que a IA teime em colocar
         html = re.sub(r"```html", "", html)
         html = re.sub(r"```", "", html)
+        html = html.replace("**", "") # Remove asteriscos perdidos
         html = html.strip()
 
-        # Montagem do corpo da postagem respeitando a arquitetura do Tema do Blogger
-        # A primeira imagem DEVE ser a primeira coisa no código HTML para o feed capturar.
+        # Montagem do corpo da postagem (A primeira imagem ABRE o post para o feed capturar)
         html_final = bloco_imagem(imagens[0])
         
+        # Distribui as outras imagens ao longo dos subtítulos (<h2>) gerados pela IA
         partes = html.split("</h2>")
         if len(partes) > 1:
             contador_imagem = 1
             for parte in partes:
+                # Reconstrói a tag <h2> após o split
                 html_final += parte + "</h2>" if not parte.endswith("</h2>") else parte
                 if contador_imagem < len(imagens) and parte != partes[-1]:
                     html_final += bloco_imagem(imagens[contador_imagem])
@@ -262,59 +266,36 @@ Gere o artigo completo em Português.
             if len(imagens) > 1:
                 html_final += bloco_imagem(imagens[1])
 
-        # Seção de créditos e link externo elegante
+        # Rodapé elegante com link para a fonte
         html_final += f"""
 <div style="margin-top: 50px; padding: 20px; border-top: 1px solid #e5e5e5;">
   <p style="font-size: 14px; color: #666; font-style: italic;">
-    Com informações complementares da cobertura oficial da <a href="{noticia['link']}" target="_blank" style="color: #000; font-weight: 600; text-decoration: underline;">Fonte Original ({noticia['titulo']})</a>.
+    Com informações da cobertura jornalística de estilo de vida da <a href="{noticia['link']}" target="_blank" style="color: #000; font-weight: 600; text-decoration: underline;">Fonte Original ({noticia['titulo']})</a>.
   </p>
 </div>
 """
         return titulo_seo, html_final
 
     except Exception as e:
-        print("\nERRO GEMINI - Usando Fallback")
-        print(e)
+        # Se cair aqui, vamos printar o erro real no terminal para você ver o que quebrou!
+        print(f"\n[ALERTA] A IA FALHOU! Erro retornado: {e}")
+        print("Usando o Fallback de segurança para não interromper o robô...")
         
-        # Fallback limpo que herda o CSS do tema perfeitamente
         fallback = f"""
 {bloco_imagem(imagens[0])}
-<p>O turismo de luxo continua crescendo globalmente com experiências exclusivas, resorts premium e destinos paradisíacos que redefinem o mercado de alto padrão.</p>
+<p>O segmento do turismo de alto padrão e lifestyle premium segue em constante expansão global, apresentando novas propriedades, roteiros customizados e experiências ultra-exclusivas voltadas para um público altamente exigente.</p>
 {bloco_imagem(imagens[-1])}
-<h2>Experiências Extraordinárias e Hospitalidade Premium</h2>
-<p>Viajantes sofisticados buscam o mais alto nível de conforto, privacidade total e experiências sob medida criadas por hotéis e resorts de elite mundiais.</p>
-<h2>Destinos Exclusivos Globais</h2>
-<p>O mercado internacional de turismo premium segue ditando fortes tendências e expandindo o conceito clássico de hospitalidade de alto luxo.</p>
-<p style="margin-top: 40px;"><a href="{noticia['link']}" target="_blank" style="font-weight: bold; text-decoration: underline;">Acesse a cobertura completa na fonte.</a></p>
+<h2>Design Extraordinário e Hospitalidade de Elite</h2>
+<p>Mais do que hotelaria tradicional, o mercado de luxo atual foca em privacidade absoluta, curadoria de experiências e arquitetura monumental. Destinos isolados e atendimento milimetricamente personalizado são os novos pilares desse mercado.</p>
+<h2>Tendências Globais para o Consumidor Premium</h2>
+<p>Seja através de iatismo charter, destinos sazonais sofisticados ou refúgios ecológicos cinco estrelas, as principais capitais e resorts do mundo continuam redefinindo o significado de exclusividade.</p>
+<p style="margin-top: 40px; font-size: 15px;">Acompanhe os detalhes e desdobramentos completos acessando diretamente a <a href="{noticia['link']}" target="_blank" style="font-weight: bold; color: #000; text-decoration: underline;">matéria de cobertura na fonte</a>.</p>
 """
         return titulo_seo, fallback
 
-# ==========================================
-# PUBLICAR BLOGGER
-# ==========================================
-
-def publicar_post(service, titulo, html):
-    categoria_escolhida = random.choice(CATEGORIAS_BLOG)
-    
-    body = {
-        "title": titulo,
-        "content": html,
-        "labels": [categoria_escolhida]
-    }
-
-    post = service.posts().insert(
-        blogId=BLOG_ID,
-        body=body,
-        isDraft=False
-    ).execute()
-
-    print("\n================================")
-    print(f"POST PUBLICADO NA CATEGORIA: {categoria_escolhida}")
-    print("================================")
-    print(post["url"])
 
 # ==========================================
-# MAIN
+# MAIN (REVISADA)
 # ==========================================
 
 def main():
@@ -326,7 +307,8 @@ def main():
         service = get_blogger_service()
         print("\nBLOGGER OK")
 
-        gemini = get_get_gemini_client() if 'get_get_gemini_client' in globals() else get_gemini_client()
+        # Correção na inicialização do cliente Gemini
+        gemini = get_gemini_client()
         print("GEMINI OK")
 
         noticia = obter_noticia()
@@ -340,7 +322,7 @@ def main():
             noticia,
             imagens
         )
-        print("\nARTIGO GERADO")
+        print("\nARTIGO GERADO COM SUCESSO")
 
         publicar_post(
             service,
@@ -354,7 +336,7 @@ def main():
 
     except Exception as e:
         print("\n================================")
-        print("ERRO CRÍTICO")
+        print("ERRO CRÍTICO NO PROCESSO")
         print("================================")
         print(e)
         raise e
