@@ -5,6 +5,7 @@ import random
 import requests
 import feedparser
 import re
+from bs4 import BeautifulSoup
 
 from google import genai
 from google.oauth2.credentials import Credentials
@@ -24,12 +25,8 @@ RSS_FEEDS = [
 ]
 
 TEMAS_IMAGENS = [
-    "luxury hotel room", 
-    "supercar lifestyle", 
-    "luxury yacht charter", 
-    "luxury villa architecture", 
-    "swiss Alps resort luxury", 
-    "fine dining restaurant"
+    "luxury hotel room", "supercar lifestyle", "luxury yacht charter", 
+    "luxury villa architecture", "swiss Alps resort luxury", "fine dining restaurant"
 ]
 
 CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
@@ -41,7 +38,7 @@ CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 
 # ==========================================
-# BLOGGER AUTH
+# ACESSO E CONEXÕES
 # ==========================================
 
 def get_blogger_service():
@@ -51,26 +48,50 @@ def get_blogger_service():
         scopes=["https://www.googleapis.com/auth/blogger"]
     )
     credentials.refresh(Request())
-    service = build("blogger", "v3", credentials=credentials)
-    return service
-
-# ==========================================
-# GEMINI AUTH
-# ==========================================
+    return build("blogger", "v3", credentials=credentials)
 
 def get_gemini_client():
-    api_key = os.environ["GEMINI_API_KEY"]
-    client = genai.Client(api_key=api_key)
-    return client
-
-# ==========================================
-# LIMPAR HTML
-# ==========================================
+    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
 def limpar_html(texto):
     texto = re.sub(r"<.*?>", "", texto)
-    texto = texto.replace("\n", " ")
-    return texto.strip()
+    return texto.replace("\n", " ").strip()
+
+# ==========================================
+# RASPAGEM DA MATÉRIA COMPLETA (NOVIDADE)
+# ==========================================
+
+def raspar_materia_completa(url):
+    """Acessa o site original e extrai todo o texto da matéria"""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        print(f"[SCRAPER] Acessando a página original para leitura completa: {url}")
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # Busca parágrafos dentro de tags comuns de artigos jornalísticos
+            paragrafos = soup.find_all("p")
+            texto_completo = []
+            
+            for p in paragrafos:
+                texto_p = p.get_text().strip()
+                # Ignora textos curtos de rodapé ou menus
+                if len(texto_p) > 60 and not any(w in texto_p.lower() for w in ["cookie", "subscribe", "privacy policy", "all rights reserved"]):
+                    texto_completo.append(texto_p)
+            
+            conteúdo = " ".join(texto_completo[:15]) # Limita o tamanho para não estourar a cota da IA
+            if len(conteúdo) > 200:
+                print(f"[SCRAPER] Conteúdo extraído com sucesso ({len(conteúdo)} caracteres).")
+                return conteúdo
+                
+    except Exception as e:
+        print(f"[SCRAPER ERRO] Não foi possível ler o site diretamente: {e}")
+    
+    return None
 
 # ==========================================
 # RSS NEWS
@@ -85,167 +106,99 @@ def obter_noticia():
             if feed.entries:
                 noticia = random.choice(feed.entries[:7])
                 titulo = noticia.title
-                resumo = getattr(noticia, "summary", "")
-                resumo = limpar_html(resumo)
+                resumo_rss = getattr(noticia, "summary", "")
+                resumo_rss = limpar_html(resumo_rss)
                 link = noticia.link
 
-                print("\nNOTÍCIA ENCONTRADA")
-                print(titulo)
+                print(f"\nNOTÍCIA ENCONTRADA: {titulo}")
+                
+                # Tenta ler o conteúdo direto na página web original
+                conteudo_profundo = raspar_materia_completa(link)
+                resumo_final = conteudo_profundo if conteudo_profundo else resumo_rss
 
                 return {
                     "titulo": titulo,
-                    "resumo": resumo,
+                    "resumo": resumo_final,
                     "link": link
                 }
         except Exception as e:
-            print("\nERRO RSS")
-            print(e)
+            print(f"\nERRO RSS: {e}")
 
     raise Exception("Nenhuma notícia encontrada")
-
-# ==========================================
-# FALLBACK IMAGEM
-# ==========================================
-
-def imagens_fallback():
-    return [
-        {
-            "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-            "autor": "Unsplash"
-        },
-        {
-            "url": "https://images.unsplash.com/photo-1493558103817-58b2924bce98",
-            "autor": "Unsplash"
-        },
-        {
-            "url": "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
-            "autor": "Unsplash"
-        }
-    ]
 
 # ==========================================
 # BUSCAR IMAGENS
 # ==========================================
 
+def imagens_fallback():
+    return [
+        {"url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e", "autor": "Unsplash"},
+        {"url": "https://images.unsplash.com/photo-1493558103817-58b2924bce98", "autor": "Unsplash"}
+    ]
+
 def gerar_imagens(titulo_noticia):
     imagens = []
-
     if not UNSPLASH_ACCESS_KEY:
-        print("\nUNSPLASH NÃO CONFIGURADO - Usando Fallback de Imagens")
         return imagens_fallback()
 
     try:
         titulo_limpo = titulo_noticia.replace("'s", "").replace("’s", "")
-        palavras = re.findall(r'\b[A-Za-zÀ-Úà-ú]{4,}\b', titulo_limpo)
-        
-        stop_words = [
-            'para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive', 'luxury', 
-            'inside', 'this', 'that', 'from', 'with', 'your', 'about', 'report', 'forbes'
-        ]
-        
+        palavras = re.findall(r'\b[A-Za-z]{4,}\b', titulo_limpo)
+        stop_words = ['inside', 'this', 'that', 'from', 'with', 'your', 'about', 'report', 'forbes', 'review']
         palavras_chave = [p.lower() for p in palavras if p.lower() not in stop_words]
         
-        if palavras_chave:
-            termo_busca = " ".join(palavras_chave[:2])
-        else:
-            termo_busca = random.choice(TEMAS_IMAGENS)
-
-        print(f"\n[UNSPLASH] Buscando imagens para o termo: '{termo_busca}'")
+        termo_busca = " ".join(palavras_chave[:2]) if palavras_chave else random.choice(TEMAS_IMAGENS)
+        print(f"[UNSPLASH] Termo de busca de imagem: '{termo_busca}'")
 
         url = "https://api.unsplash.com/search/photos"
-        headers = {"Accept-Version": "v1"}
-        params = {
-            "query": termo_busca,
-            "orientation": "landscape",
-            "per_page": 10,
-            "client_id": UNSPLASH_ACCESS_KEY
-        }
-
-        response = requests.get(url, headers=headers, params=params, timeout=30)
+        params = {"query": termo_busca, "orientation": "landscape", "per_page": 8, "client_id": UNSPLASH_ACCESS_KEY}
+        response = requests.get(url, params=params, timeout=15)
 
         if response.status_code == 200:
-            data = response.json()
-            resultados = data.get("results", [])
+            resultados = response.json().get("results", [])
             if resultados:
-                amostra = random.sample(resultados, min(len(resultados), 3))
-                for imagem in amostra:
-                    imagens.append({
-                        "url": imagem["urls"]["regular"],
-                        "autor": imagem["user"]["name"]
-                    })
-                    
-        time.sleep(1)
-
+                amostra = random.sample(resultados, min(len(resultados), 2))
+                for img in amostra:
+                    imagens.append({"url": img["urls"]["regular"], "autor": img["user"]["name"]})
+        
         if len(imagens) < 2:
             imagens.extend(imagens_fallback())
-
         return imagens
-
     except Exception as e:
-        print("\nERRO IMAGENS - Usando Fallback")
-        print(e)
+        print(f"[ERRO IMAGENS]: {e}")
         return imagens_fallback()
-
-# ==========================================
-# BLOCO IMAGEM (Alimenta o Card do Feed)
-# ==========================================
 
 def bloco_imagem(imagem):
     return f"""
 <div class="separator" style="clear: both; text-align: center; margin: 30px 0;">
-  <img src="{imagem['url']}" alt="Luxury Travel" style="width: 100%; height: auto; border-radius: 8px; max-width: 100%;"/>
+  <img src="{imagem['url']}" alt="Luxury Concept" style="width: 100%; height: auto; border-radius: 8px; max-width: 100%;"/>
   <br/>
-  <span style="font-size: 12px; color: #999; letter-spacing: 1px;">Photo by {imagem['autor']} / Unsplash</span>
+  <span style="font-size: 12px; color: #999;">Photo by {imagem['autor']} / Unsplash</span>
 </div>
 """
-
-# ==========================================
-# SEO TÍTULO
-# ==========================================
-
-def gerar_titulo_seo(titulo):
-    # Se o título original contiver muitas palavras em inglês, cria uma chamada premium em português
-    if any(word in titulo.lower() for word in ['inside', 'test', 'review', 'lives', 'hype', 'luxury', 'opens']):
-        opcoes_luxo = [
-            "Tendências do Mercado de Luxo Internacional",
-            "Bastidores do Turismo de Alto Padrão Global",
-            "Experiências Exclusivas no Cenário Premium Mundial",
-            "O Estilo de Vida Ultra-Luxury e Destinos de Elite",
-            "Inovação e Sofisticação no Mercado de Alto Luxo"
-        ]
-        return random.choice(opcoes_luxo)
-    
-    prefixos = ["Descubra:", "Conheça:", "Veja:", "Luxo:", "Exclusivo:"]
-    return f"{random.choice(prefixos)} {titulo}"
 
 # ==========================================
 # GERAR ARTIGO IA
 # ==========================================
 
 def gerar_artigo(cliente, noticia, imagens):
-    titulo_seo = gerar_titulo_seo(noticia["titulo"])
-
+    # Prompt agressivo exigindo tradução e reescrita total baseada no conteúdo coletado
     prompt = f"""
-Você é um jornalista de turismo internacional de altíssimo padrão e redator-chefe de uma revista de estilo de vida de luxo.
-Sua missão é ler o fato abaixo e criar uma reportagem de cobertura exclusiva, detalhada, totalmente inédita e autoral.
+Você é o redator-chefe de uma revista de alto padrão. Leia a matéria internacional abaixo (em inglês) e faça uma reescrita jornalística completa e aprofundada em PORTUGUÊS DO BRASIL.
 
-CONTEXTO DA NOTÍCIA:
-Título original: {noticia['titulo']}
-Fatos/Resumo: {noticia['resumo']}
+CONTEÚDO ORIGINAL DA MATÉRIA:
+Título: {noticia['titulo']}
+Texto de Origem: {noticia['resumo']}
 
-REGRAS CRUCIAIS DE ESCRITA:
-1. Escreva um artigo LONGO, completo e robusto (mínimo de 800 a 1000 palavras). Quero parágrafos densos e profundos.
-2. Utilize apenas tags HTML puras (<p>, <h2>, <h3>). 
-3. NÃO use tags globais como <html>, <body>, <h1> ou <div> com estilos engessados.
-4. Não copie frases da fonte original. Reescreva tudo com um tom sofisticado, glamouroso, focado no público Ultra-wealthy.
-5. Desenvolva extensamente o cenário, a arquitetura dos locais mencionados, o nível do serviço VIP e detalhes que expandam o assunto de forma inteligente.
-6. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Retorne APENAS o texto cru com as tags HTML misturadas.
-
-Gere o artigo completo em Português.
+REGRAS OBRIGATÓRIAS:
+1. TÍTULO: Crie um título inédito, chamativo e luxuoso totalmente em português. Ele deve abrir a resposta na primeira linha.
+2. CONTEÚDO: Não faça um resumo curto. Desenvolva um texto longo (mínimo de 600 palavras), fluido, reescrevendo os fatos com sinônimos e termos sofisticados.
+3. FORMATO: Retorne apenas tags HTML puras (<p>, <h2>). Nunca use marcações Markdown (como asteriscos ** ou blocos de ```html).
+4. IDIOMA: Proibido manter frases ou títulos em inglês. Tudo deve ser localizado para o português.
 """
 
     try:
-        # Tenta rodar com o 1.5-flash caso o limite do 2.0 tenha estourado na conta free
+        # Usando o 1.5-flash para economizar tokens e evitar o erro 429
         resposta = cliente.models.generate_content(
             model="gemini-1.5-flash",
             contents=prompt
@@ -253,77 +206,68 @@ Gere o artigo completo em Português.
 
         html = resposta.text
         if not html:
-            raise Exception("A resposta da IA veio vazia.")
+            raise Exception("Resposta da IA vazia.")
 
-        html = re.sub(r"```html", "", html)
-        html = re.sub(r"```", "", html)
-        html = html.replace("**", "")
-        html = html.strip()
+        html = re.sub(r"```html|```|\*\*", "", html).strip()
 
-        # Primeira imagem no topo para alimentar o feed do Blogger
+        # Separa a primeira linha como o título em português
+        linhas = html.split("\n")
+        titulo_final = linhas[0].replace("<p>", "").replace("</p>", "").replace("<h1>", "").replace("</h1>", "").strip()
+        corpo_artigo = "\n".join(linhas[1:])
+
+        # Garante que a primeira imagem abra a postagem na página interna
         html_final = bloco_imagem(imagens[0])
         
-        partes = html.split("</h2>")
+        partes = corpo_artigo.split("</h2>")
         if len(partes) > 1:
-            contador_imagem = 1
+            contador = 1
             for parte in partes:
                 html_final += parte + "</h2>" if not parte.endswith("</h2>") else parte
-                if contador_imagem < len(imagens) and parte != partes[-1]:
-                    html_final += bloco_imagem(imagens[contador_imagem])
-                    contador_imagem += 1
+                if contador < len(imagens) and parte != partes[-1]:
+                    html_final += bloco_imagem(imagens[contador])
+                    contador += 1
         else:
-            html_final += html
+            html_final += corpo_artigo
             if len(imagens) > 1:
                 html_final += bloco_imagem(imagens[1])
 
+        # Rodapé com link de créditos
         html_final += f"""
 <div style="margin-top: 50px; padding: 20px; border-top: 1px solid #e5e5e5;">
   <p style="font-size: 14px; color: #666; font-style: italic;">
-    Com informações da cobertura jornalística de estilo de vida da <a href="{noticia['link']}" target="_blank" style="color: #000; font-weight: 600; text-decoration: underline;">Fonte Original ({noticia['titulo']})</a>.
+    Com informações e cobertura exclusiva adaptada da <a href="{noticia['link']}" target="_blank" style="color: #000; font-weight: 600; text-decoration: underline;">Matéria Original no veículo internacional</a>.
   </p>
 </div>
 """
-        return titulo_seo, html_final
+        return titulo_final, html_final
 
     except Exception as e:
-        print(f"\n[ALERTA] A IA FALHOU! Erro retornado: {e}")
-        print("Usando o Fallback de segurança para não interromper o robô...")
-        
+        print(f"\n[ALERTA IA] Erro: {e}. Executando Fallback Traduzido...")
+        # Fallback dinâmico em português caso a cota estoure de novo
+        titulo_fallback = f"Destaque Internacional: Análise sobre {noticia['titulo']}"
         fallback = f"""
 {bloco_imagem(imagens[0])}
-<p>O segmento do turismo de alto padrão e lifestyle premium segue em constante expansão global, apresentando novas propriedades, roteiros customizados e experiências ultra-exclusivas voltadas para um público altamente exigente.</p>
+<p>Novos desdobramentos movimentam o cenário global de alto padrão esta semana. O mercado internacional de estilo de vida premium acompanha atentamente as novas tendências de consumo, experiências customizadas e o comportamento do público de elite.</p>
 {bloco_imagem(imagens[-1])}
-<h2>Design Extraordinário e Hospitalidade de Elite</h2>
-<p>Mais do que hotelaria tradicional, o mercado de luxo atual foca em privacidade absoluta, curadoria de experiências e arquitetura monumental. Destinos isolados e atendimento milimetricamente personalizado são os novos pilares desse mercado.</p>
-<h2>Tendências Globais para o Consumidor Premium</h2>
-<p>Seja através de iatismo charter, destinos sazonais sofisticados ou refúgios ecológicos cinco estrelas, as principais capitais e resorts do mundo continuam redefinindo o significado de exclusividade.</p>
-<p style="margin-top: 40px; font-size: 15px;">Acompanhe os detalhes e desdobramentos completos acessando diretamente a <a href="{noticia['link']}" target="_blank" style="font-weight: bold; color: #000; text-decoration: underline;">matéria de cobertura na fonte</a>.</p>
+<h2>Perspectivas e Impacto no Setor Premium</h2>
+<p>Especialistas apontam que a busca por exclusividade total e serviços customizados continua redefinindo os investimentos de marcas e destinos sofisticados ao redor do mundo, criando novos nichos de mercado.</p>
+<p style="margin-top: 40px;"><a href="{noticia['link']}" target="_blank" style="font-weight: bold; color: #000;">Clique aqui para ler os detalhes completos diretamente na cobertura oficial da fonte.</a></p>
 """
-        return titulo_seo, fallback
+        return titulo_fallback, fallback
 
 # ==========================================
-# PUBLICAR BLOGGER (RECOLOCADA NO LUGAR CORRETO)
+# PUBLICAR BLOGGER
 # ==========================================
 
 def publicar_post(service, titulo, html):
-    categoria_escolhida = random.choice(CATEGORIAS_BLOG)
-    
+    categoria = random.choice(CATEGORIAS_BLOG)
     body = {
         "title": titulo,
         "content": html,
-        "labels": [categoria_chosen := categoria_escolhida]
+        "labels": [categoria]
     }
-
-    post = service.posts().insert(
-        blogId=BLOG_ID,
-        body=body,
-        isDraft=False
-    ).execute()
-
-    print("\n================================")
-    print(f"POST PUBLICADO NA CATEGORIA: {categoria_chosen}")
-    print("================================")
-    print(post["url"])
+    post = service.posts().insert(blogId=BLOG_ID, body=body, isDraft=False).execute()
+    print(f"\n[SUCESSO] Post publicado em '{categoria}': {post['url']}")
 
 # ==========================================
 # MAIN
@@ -332,43 +276,25 @@ def publicar_post(service, titulo, html):
 def main():
     try:
         print("\n================================")
-        print("INICIANDO ROBÔ PREMIUM")
+        print("INICIANDO SCRIPT DE COBERTURA INTEGRAL")
         print("================================")
 
         service = get_blogger_service()
-        print("BLOGGER OK")
-
         gemini = get_gemini_client()
-        print("GEMINI OK")
-
+        
         noticia = obter_noticia()
         imagens = gerar_imagens(noticia["titulo"]) 
-        print("IMAGENS OK")
         
         time.sleep(2)
-
-        titulo, html = gerar_artigo(
-            gemini,
-            noticia,
-            imagens
-        )
-        print("ARTIGO GERADO COM SUCESSO")
-
-        publicar_post(
-            service,
-            titulo,
-            html
-        )
-
+        titulo, html = gerar_artigo(gemini, noticia, imagens)
+        
+        publicar_post(service, titulo, html)
         print("\n================================")
-        print("PROCESSO FINALIZADO SEM ERROS")
+        print("PROCESSO CONCLUÍDO")
         print("================================")
 
     except Exception as e:
-        print("\n================================")
-        print("ERRO CRÍTICO NO PROCESSO")
-        print("================================")
-        print(e)
+        print(f"\n[ERRO CRÍTICO]: {e}")
         raise e
 
 if __name__ == "__main__":
