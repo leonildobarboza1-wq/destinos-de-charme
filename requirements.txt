@@ -2,3 +2,5 @@ google-genai
 requests
 google-auth
 google-api-python-client
+beautifulsoup4
+lxml
