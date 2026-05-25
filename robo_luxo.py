@@ -38,109 +38,60 @@ TEMAS_IMAGENS = [
     "luxury yacht",
 ]
 CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
+
 # ==========================================
 # UNSPLASH
 # ==========================================
 
-UNSPLASH_ACCESS_KEY = os.environ.get(
-    "UNSPLASH_ACCESS_KEY",
-    ""
-)
+UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 
 # ==========================================
 # BLOGGER AUTH
 # ==========================================
 
 def get_blogger_service():
-
-    credentials_info = json.loads(
-        os.environ["GOOGLE_CREDENTIALS_JSON"]
-    )
-
+    credentials_info = json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
     credentials = Credentials.from_authorized_user_info(
         credentials_info,
-        scopes=[
-            "https://www.googleapis.com/auth/blogger"
-        ]
+        scopes=["https://www.googleapis.com/auth/blogger"]
     )
-
     credentials.refresh(Request())
-
-    service = build(
-        "blogger",
-        "v3",
-        credentials=credentials
-    )
-
+    service = build("blogger", "v3", credentials=credentials)
     return service
-
 
 # ==========================================
 # GEMINI
 # ==========================================
 
 def get_gemini_client():
-
     api_key = os.environ["GEMINI_API_KEY"]
-
-    client = genai.Client(
-        api_key=api_key
-    )
-
+    client = genai.Client(api_key=api_key)
     return client
-
 
 # ==========================================
 # LIMPAR HTML
 # ==========================================
 
 def limpar_html(texto):
-
-    texto = re.sub(
-        r"<.*?>",
-        "",
-        texto
-    )
-
+    texto = re.sub(r"<.*?>", "", texto)
     texto = texto.replace("\n", " ")
-
     return texto.strip()
-
 
 # ==========================================
 # RSS NEWS
 # ==========================================
 
 def obter_noticia():
-
     random.shuffle(RSS_FEEDS)
-
     for url in RSS_FEEDS:
-
         try:
-
             print(f"\nLENDO RSS: {url}")
-
             feed = feedparser.parse(url)
-
             if feed.entries:
-
-                noticia = random.choice(
-                    feed.entries[:7]
-                )
-
+                noticia = random.choice(feed.entries[:7])
                 titulo = noticia.title
-
-                resumo = getattr(
-                    noticia,
-                    "summary",
-                    ""
-                )
-
-                resumo = limpar_html(
-                    resumo
-                )
-
+                resumo = getattr(noticia, "summary", "")
+                resumo = limpar_html(resumo)
                 link = noticia.link
 
                 print("\nNOTÍCIA ENCONTRADA")
@@ -151,23 +102,17 @@ def obter_noticia():
                     "resumo": resumo,
                     "link": link
                 }
-
         except Exception as e:
-
             print("\nERRO RSS")
             print(e)
 
-    raise Exception(
-        "Nenhuma notícia encontrada"
-    )
-
+    raise Exception("Nenhuma notícia encontrada")
 
 # ==========================================
 # FALLBACK IMAGEM
 # ==========================================
 
 def imagens_fallback():
-
     return [
         {
             "url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
@@ -183,158 +128,83 @@ def imagens_fallback():
         }
     ]
 
-
 # ==========================================
 # BUSCAR IMAGENS
 # ==========================================
 
-def gerar_imagens():
-
+def gerar_imagens(titulo_noticia):
     imagens = []
 
     if not UNSPLASH_ACCESS_KEY:
-
-        print(
-            "\nUNSPLASH NÃO CONFIGURADO"
-        )
-
+        print("\nUNSPLASH NÃO CONFIGURADO")
         return imagens_fallback()
 
     try:
+        palavras_chave = [palavra for palavra in re.findall(r'\b[A-ZÀ-Úa-zà-ú]{4,}\b', titulo_noticia) 
+                          if palavra.lower() not in ['para', 'com', 'uma', 'mais', 'sobre', 'luxo', 'exclusive']]
+        
+        termo_busca = " ".join(palavras_chave[:3]) if palavras_chave else random.choice(TEMAS_IMAGENS)
 
-        for i in range(5):
+        for i in range(3):
+            print(f"\nBUSCANDO IMAGEM ESPECÍFICA NO UNSPLASH: {termo_busca}")
 
-            tema = random.choice(
-                TEMAS_IMAGENS
-            )
-
-            print(
-                f"\nBUSCANDO IMAGEM: {tema}"
-            )
-
-            url = (
-                "https://api.unsplash.com/search/photos"
-            )
-
-            headers = {
-                "Accept-Version": "v1"
-            }
-
+            url = "https://api.unsplash.com/search/photos"
+            headers = {"Accept-Version": "v1"}
             params = {
-                "query": tema,
+                "query": termo_busca,
                 "orientation": "landscape",
-                "per_page": 30,
+                "per_page": 15,
                 "client_id": UNSPLASH_ACCESS_KEY
             }
 
-            response = requests.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=30
-            )
+            response = requests.get(url, headers=headers, params=params, timeout=30)
 
-            if response.status_code != 200:
-
-                print(
-                    f"ERRO UNSPLASH: {response.status_code}"
-                )
-
-                continue
-
-            data = response.json()
-
-            resultados = data.get(
-                "results",
-                []
-            )
-
-            if not resultados:
-                continue
-
-            imagem = random.choice(
-                resultados
-            )
-
-            imagens.append({
-                "url": imagem["urls"]["regular"],
-                "autor": imagem["user"]["name"]
-            })
-
+            if response.status_code == 200:
+                data = response.json()
+                resultados = data.get("results", [])
+                if resultados:
+                    imagem = random.choice(resultados)
+                    imagens.append({
+                        "url": imagem["urls"]["regular"],
+                        "autor": imagem["user"]["name"]
+                    })
             time.sleep(1)
 
-        if imagens:
+        if len(imagens) < 2:
+            imagens.extend(imagens_fallback())
 
-            print(
-                f"\nTOTAL IMAGENS: {len(imagens)}"
-            )
-
-            return imagens
+        return imagens
 
     except Exception as e:
-
-        print("\nERRO IMAGENS")
+        print("\nERRO IMAGENS - Usando Fallback")
         print(e)
-
-    return imagens_fallback()
-
+        return imagens_fallback()
 
 # ==========================================
 # BLOCO IMAGEM
 # ==========================================
 
 def bloco_imagem(imagem):
-
     return f"""
-<div style="
-margin:50px 0;
-text-align:center;
-">
-
-<img
-src="{imagem['url']}"
-alt="Luxury Travel"
-style="
-width:100%;
-border-radius:20px;
-box-shadow:0 10px 35px rgba(0,0,0,0.18);
-"
->
-
-<p style="
-font-size:13px;
-color:#888;
-margin-top:10px;
-">
+<div style="margin:50px 0; text-align:center;">
+<img src="{imagem['url']}" alt="Luxury Travel" style="width:100%; border-radius:20px; box-shadow:0 10px 35px rgba(0,0,0,0.18);">
+<p style="font-size:13px; color:#888; margin-top:10px;">
 Photo by {imagem['autor']} / Unsplash
 </p>
-
 </div>
 """
-
 
 # ==========================================
 # SEO TÍTULO
 # ==========================================
 
 def gerar_titulo_seo(titulo):
-
     prefixos = [
-        "Descubra",
-        "Conheça",
-        "Veja",
-        "Luxo:",
-        "Exclusivo:",
-        "Turismo Premium:",
-        "Destino de Luxo:"
+        "Descubra", "Conheça", "Veja", "Luxo:", 
+        "Exclusivo:", "Turismo Premium:", "Destino de Luxo:"
     ]
-
-    prefixo = random.choice(
-        prefixos
-    )
-
+    prefixo = random.choice(prefixos)
     return f"{prefixo} {titulo}"
-
 
 # ==========================================
 # GERAR ARTIGO IA
@@ -344,24 +214,21 @@ def gerar_artigo(cliente, noticia, imagens):
     titulo_seo = gerar_titulo_seo(noticia["titulo"])
 
     prompt = f"""
-Você é um redator profissional especialista em turismo de luxo, hotéis premium e resorts exclusivos.
-Crie um artigo PREMIUM em HTML puro, sem usar nenhuma marcação Markdown (nunca use ```html ou asteriscos).
+Você é um journalist de turismo internacional de altíssimo padrão e redator-chefe de uma revista de estilo de vida de luxo.
+Sua missão é ler o fato abaixo e criar uma grande reportagem de cobertura exclusiva, totalmente inédita e autoral.
 
-OBJETIVO:
-Criar um conteúdo estilo revista internacional.
+CONTEXTO DA NOTÍCIA:
+Título original: {noticia['titulo']}
+Fatos/Resumo: {noticia['resumo']}
 
-REGRAS:
-- Mínimo 1000 palavras
-- SEO extremamente forte
-- Use títulos H2 e H3 para organizar o texto
-- Linguagem sofisticada e storytelling elegante
-- NÃO use blocos de código ou markdown, escreva apenas as tags HTML diretamente.
+REGRAS CRUCIAIS DE ESCRITA (PARA EVITAR PLÁGIO E ARTIFICIALIDADE):
+1. Escreva um artigo completo e robusto em HTML puro (mínimo de 50 a 60 linhas de parágrafos de conteúdo denso, aproximadamente 1000 palavras).
+2. Não copie frases da fonte original. Reescreva a história com um tom sofisticado, glamouroso, focado no público ultra-wealthy.
+3. Desenvolva o cenário: Descreva como deve ser a experiência no local, a arquitetura, o serviço impecável e os detalhes que encantam viajantes de alto padrão. Expandir o assunto de forma inteligente.
+4. Organize o texto utilizando cabeçalhos <h2> e <h3> elegantes ao longo da leitura.
+5. NUNCA use marcações Markdown (sem asteriscos **, sem blocos de ```html). Escreva apenas o texto envolto nas tags HTML diretamente.
 
-TÍTULO:
-{titulo_seo}
-
-RESUMO:
-{noticia['resumo']}
+Gere o artigo completo em Português.
 """
 
     try:
@@ -374,18 +241,16 @@ RESUMO:
         if not html:
             raise Exception("Resposta vazia")
 
-       # LIMPEZA CRUCIAL: Remove marcações markdown indesejadas que a IA gera por padrão
         html = re.sub(r"```html", "", html)
         html = re.sub(r"```", "", html)
         html = html.strip()
 
-        # Montagem do esqueleto do post garantindo o topo limpo
         html_final = f"""
-<div style="max-width:1050px; margin:auto; font-family:Arial,sans-serif; line-height:1.95; color:#222; font-size:19px;">
+<div style="max-width:1050px; margin:auto; font-family:Arial,sans-serif; line-height:2.0; color:#1a1a1a; font-size:19px; text-align: justify;">
 {bloco_imagem(imagens[0])}
+<h1 style="font-size:36px; margin-bottom:30px; color:#111; line-height:1.3;">{titulo_seo}</h1>
 """
         
-        # Tenta quebrar por H2 para distribuir as imagens restantes de forma elegante
         partes = html.split("</h2>")
         if len(partes) > 1:
             contador_imagem = 1
@@ -395,16 +260,14 @@ RESUMO:
                     html_final += bloco_imagem(imagens[contador_imagem])
                     contador_imagem += 1
         else:
-            # Caso a IA não use H2, apenas joga o HTML e uma imagem de fechamento
             html_final += html
             if len(imagens) > 1:
                 html_final += bloco_imagem(imagens[1])
 
-        # Seção de créditos/fonte no final do post
         html_final += f"""
-<div style="margin-top:60px; padding:30px; background:#fafafa; border-radius:18px;">
-<h3>Fonte Original</h3>
-<p><a href="{noticia['link']}" target="_blank">{noticia['titulo']}</a></p>
+<div style="margin-top:60px; padding:30px; background:#fcfcfc; border-top:1px solid #eee; border-radius:18px;">
+<h4 style="color:#777; text-transform:uppercase; letter-spacing:1px; font-size:13px; margin-bottom:10px;">Leitura Recomendada</h4>
+<p style="font-size:16px;">Confira também os detalhes da cobertura oficial na <a href="{noticia['link']}" target="_blank" style="color:#111; font-weight:bold; text-decoration:underline;">Fonte Original ({noticia['titulo']})</a>.</p>
 </div>
 </div>
 """
@@ -417,7 +280,7 @@ RESUMO:
         fallback = f"""
 <div style="max-width:1000px; margin:auto; font-family:Arial; line-height:1.9; font-size:19px;">
 {bloco_imagem(imagens[0])}
-<h1>{titulo_seo}</h1>
+<h1 style="font-size:36px; margin-bottom:30px; color:#111; line-height:1.3;">{titulo_seo}</h1>
 <p>O turismo de luxo continua crescendo globalmente com experiências exclusivas, resorts premium e destinos paradisíacos.</p>
 {bloco_imagem(imagens[-1])}
 <h2>Experiências Premium</h2>
@@ -436,51 +299,45 @@ RESUMO:
 # ==========================================
 
 def publicar_post(service, titulo, html):
-    # Seleciona uma categoria aleatória compatível com os botões do seu menu atual
     categoria_escolhida = random.choice(CATEGORIAS_BLOG)
     
     body = {
         "title": titulo,
         "content": html,
-        "labels": [categoria_escolhida] # ESSA LINHA ATIVA OS BOTÕES DO SEU MENU
+        "labels": [categoria_escolhida]
     }
 
     post = service.posts().insert(
         blogId=BLOG_ID,
         body=body,
-        isDraft=False # Altere para True se quiser testar primeiro como Rascunho
+        isDraft=False
     ).execute()
 
     print("\n================================")
     print(f"POST PUBLICADO NA CATEGORIA: {categoria_escolhida}")
     print("================================")
     print(post["url"])
+
 # ==========================================
 # MAIN
 # ==========================================
 
 def main():
-
     try:
-
         print("\n================================")
         print("INICIANDO ROBÔ PREMIUM")
         print("================================")
 
         service = get_blogger_service()
-
         print("\nBLOGGER OK")
 
         gemini = get_gemini_client()
-
         print("GEMINI OK")
 
         noticia = obter_noticia()
-
-        imagens = gerar_imagens()
-
+        imagens = gerar_imagens(noticia["titulo"]) 
         print("\nIMAGENS OK")
-
+        
         time.sleep(2)
 
         titulo, html = gerar_artigo(
@@ -488,7 +345,6 @@ def main():
             noticia,
             imagens
         )
-
         print("\nARTIGO GERADO")
 
         publicar_post(
@@ -502,13 +358,11 @@ def main():
         print("================================")
 
     except Exception as e:
-
         print("\n================================")
         print("ERRO CRÍTICO")
         print("================================")
-
         print(e)
-
         raise e
+
 if __name__ == "__main__":
     main()
