@@ -19,15 +19,21 @@ from googleapiclient.discovery import build
 BLOG_ID = "2362582861639823192"
 
 RSS_FEEDS = [
-    "https://www.luxuo.com/feed",
-    "https://robbreport.com/feed",
-    "https://www.forbes.com/lifestyle/feed",
+    "https://www.cntraveler.com/feed/wellness/rss",          # Condé Nast: Retiros e Bem-estar de Luxo
+    "https://www.cntraveler.com/feed/interests/adventure-travel/rss", # Condé Nast: Aventura e Trilhas Premium
+    "https://robbreport.com/luxury-travel/feed",            # Robb Report: Viagens e Destinos de Elite
+    "https://www.luxuo.com/properties/hotel-resort/feed",   # Luxuo: Hotéis e Resorts Monumentais
+    "https://www.forbes.com/travel/feed",                  # Forbes: Turismo de Luxo Global
 ]
 
 TEMAS_IMAGENS = [
-    "luxury hotel room", "supercar lifestyle", "luxury yacht charter", 
-    "luxury villa architecture", "swiss Alps resort luxury", "fine dining restaurant"
-]
+    "luxury mountain lodge dolomites", 
+    "luxury wellness retreat bali", 
+    "meditation sanctuary luxury", 
+    "luxury yoga resort", 
+    "swiss alps luxury hotel view",
+    "luxury spa nature view"
+]]
 
 CATEGORIAS_BLOG = ["Destinos", "Hoteis", "Resorts"]
 
