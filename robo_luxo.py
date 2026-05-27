@@ -61,8 +61,32 @@ def buscar_noticia():
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Gerando artigo adaptado editorialmente...")
+    print("🧠 Gerando artigo com imagem protegida por créditos...")
     client = genai.Client(api_key=GEMINI_KEY)
+    
+    # Injeta a imagem com uma legenda de direitos autorais logo abaixo
+    tag_imagem_html = f"""
+    <p style="text-align: center;">
+        <img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px;" /><br>
+        <span style="font-size: 11px; color: #888888; id: legenda-foto">Imagem: Reprodução / Fonte Original</span>
+    </p>
+    """ if img_url else ""
+    
+    prompt = f"""
+    Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
+    Transforme os dados abaixo em um artigo sofisticado.
+
+    Dados:
+    - Título: {titulo}
+    - Conteúdo: {conteudo}
+    
+    FORMATOS DE MARCAÇÃO PARA PARSER:
+    [TITULO_DO_POST] O título em português.
+    [CORPO_DO_POST] {tag_imagem_html}
+    Texto em HTML, seguido da atribuição '<p><i>Fonte original: <a href="{link_original}">Clique aqui</a></i></p>', <hr> e 'ENGLISH VERSION'.
+    """
+    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+    return response.text
     
     # Prepara a tag de imagem se ela existir no RSS
     tag_imagem_html = f'<p style="text-align: center;"><img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px;" /></p>' if img_url else ""
