@@ -1,7 +1,9 @@
 import os
 import json
+import random
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from google import genai
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -13,8 +15,11 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 BLOG_ID = "2362582861639823192"
 
+# Lista expandida de fontes para permitir a seleção randômica real
 FONTES_NEWS = [
-    {"nome": "Robb Report", "url": "https://robbreport.com/travel/feed/"}
+    {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
+    {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
+    {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"}
 ]
 
 def inicializar_client_blogger():
@@ -27,69 +32,92 @@ def inicializar_client_blogger():
     except Exception as e:
         raise e
 
-def buscar_noticia():
-    print("🌐 Minerando notícia, link e imagem de destaque...")
+def listar_titulos_publicados_24h(blogger_service):
+    """
+    Conecta à API do Blogger e baixa os títulos dos posts publicados nas últimas 24 horas
+    para servir de barreira contra duplicidade.
+    """
+    print("🔍 Verificando histórico de publicações do Blogger nas últimas 24h...")
+    titulos_recentes = set()
+    try:
+        # Define o marco de 24 horas atrás no formato ISO adotado pelo Google (UTC)
+        time_threshold = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        
+        request = blogger_service.posts().list(blogId=BLOG_ID, startDate=time_threshold, maxResults=10)
+        response = request.execute()
+        
+        if 'items' in response:
+            for post in response['items']:
+                titulos_recentes.add(post['title'].strip().lower())
+    except Exception as e:
+        print(f"⚠️ Não foi possível varrer o histórico do Blogger (continuando por segurança): {e}")
+    
+    return titulos_recentes
+
+def buscar_noticia_aleatoria(titulos_bloqueados):
+    """
+    Embaralha as fontes, raspa as notícias e seleciona uma de forma randômica,
+    garantindo que ela não tenha sido publicada nas últimas 24h.
+    """
+    print("🎲 Iniciando mineração randômica anti-duplicação...")
     headers = {'User-Agent': 'Mozilla/5.0'}
-    for fonte in FONTES_NEWS:
+    
+    # Embaralha a ordem das fontes de notícias
+    fontes_aleatorias = list(FONTES_NEWS)
+    random.shuffle(fontes_aleatorias)
+    
+    for fonte in fontes_aleatorias:
         try:
             req = urllib.request.Request(fonte['url'], headers=headers)
             with urllib.request.urlopen(req, timeout=10) as response:
                 root = ET.fromstring(response.read())
-            item = root.find('.//item')
-            if item is not None:
+            
+            items = root.findall('.//item')
+            if not items:
+                continue
+                
+            # Embaralha as matérias de dentro do feed atual
+            random.shuffle(items)
+            
+            for item in items:
                 title = item.find('title').text
                 desc = item.find('description').text if item.find('description') is not None else ""
                 link = item.find('link').text
                 
-                # Tenta capturar a imagem dentro das tags de mídia padrão do WordPress/RSS
+                # Validação inteligente: pula se o título original (ou aproximações) já foi usado
+                if title.strip().lower() in titulos_bloqueados:
+                    print(f"⏭️ Matéria já publicada recentemente detectada e pulará: {title}")
+                    continue
+                
+                # Captura de mídia
                 img_url = ""
-                # 1ª Opção: Tag media:content do RSS
                 media_content = item.find('{http://search.yahoo.com/mrss/}content')
                 if media_content is not None and 'url' in media_content.attrib:
                     img_url = media_content.attrib['url']
-                
-                # 2ª Opção: Se não achar, procura na tag enclosure (comum em imagens)
                 if not img_url:
                     enclosure = item.find('enclosure')
                     if enclosure is not None and 'url' in enclosure.attrib:
                         img_url = enclosure.attrib['url']
                 
+                print(f"🎯 Notícia selecionada com sucesso da fonte [{fonte['nome']}]: {title}")
                 return title, desc, link, img_url
+                
         except Exception as e:
-            print(f"⚠️ Alerta ao ler feed: {e}")
+            print(f"⚠️ Erro ao processar feed {fonte['nome']}: {e}")
             continue
+            
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Gerando artigo com imagem protegida por créditos...")
+    print("🧠 Invocando Gemini 2.5 Flash para tradução e lapidação editorial...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # Injeta a imagem com uma legenda de direitos autorais logo abaixo
     tag_imagem_html = f"""
     <p style="text-align: center;">
         <img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px;" /><br>
-        <span style="font-size: 11px; color: #888888; id: legenda-foto">Imagem: Reprodução / Fonte Original</span>
+        <span style="font-size: 11px; color: #888888;">Imagem: Reprodução / Fonte Original</span>
     </p>
     """ if img_url else ""
-    
-    prompt = f"""
-    Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
-    Transforme os dados abaixo em um artigo sofisticado.
-
-    Dados:
-    - Título: {titulo}
-    - Conteúdo: {conteudo}
-    
-    FORMATOS DE MARCAÇÃO PARA PARSER:
-    [TITULO_DO_POST] O título em português.
-    [CORPO_DO_POST] {tag_imagem_html}
-    Texto em HTML, seguido da atribuição '<p><i>Fonte original: <a href="{link_original}">Clique aqui</a></i></p>', <hr> e 'ENGLISH VERSION'.
-    """
-    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-    return response.text
-    
-    # Prepara a tag de imagem se ela existir no RSS
-    tag_imagem_html = f'<p style="text-align: center;"><img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px;" /></p>' if img_url else ""
     
     prompt = f"""
     Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
@@ -101,14 +129,14 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     
     DIRETRIZES OBRIGATÓRIAS:
     1. Crie um título poético e refinado 100% em PORTUGUÊS.
-    2. Texto envolvente sem usar clichês como "Destaque Internacional" ou "Análise sobre".
+    2. Texto envolvente sem usar clichês como \"Destaque Internacional\".
     3. Ao final da matéria em português, insira exatamente este bloco de atribuição de fonte:
-       '<p><i>Fonte original: <a href="{link_original}">Clique aqui para ler a matéria completa no site oficial</a></i></p>'
+       '<p><i>Fonte original: <a href="{link_original}" target="_blank" rel="noopener noreferrer">Clique aqui para ler a matéria completa no site oficial</a></i></p>'
     
     FORMATOS DE MARCAÇÃO PARA PARSER:
     [TITULO_DO_POST] O título em português gerado por você.
-    [CORPO_DO_POST] Insira primeiro esta tag de imagem exatamente como ela está aqui: {tag_imagem_html}
-    Logo após a imagem, insira o seu texto formatado em HTML (<p>, <strong>), seguido da fonte original, a linha divisória <hr> e por fim a 'ENGLISH VERSION' completa.
+    [CORPO_DO_POST] {tag_imagem_html}
+    Insira o seu texto formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e por fim a 'ENGLISH VERSION' completa.
     """
     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
     return response.text
@@ -118,13 +146,18 @@ def publicar_postagem(blogger_service, titulo, corpo_html):
     try:
         request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
         request.execute()
-        print("✨ SUCESSO ABSOLUTO: Post publicado com a imagem de destaque integrada!")
+        print("✨ SUCESSO DE PRODUÇÃO: Post randômico inédito publicado!")
     except Exception as e:
         raise e
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
-    orig_titulo, orig_desc, orig_link, orig_img = buscar_noticia()
+    
+    # 1. Busca o que foi postado no blog nas últimas 24h
+    titulos_bloqueados = listar_titulos_publicados_24h(blogger_client)
+    
+    # 2. Garante uma notícia aleatória que passou no filtro anti-duplicação
+    orig_titulo, orig_desc, orig_link, orig_img = buscar_noticia_aleatoria(titulos_bloqueados)
     
     if orig_titulo:
         resultado_ia = gerar_conteudo_ia(orig_titulo, orig_desc, orig_link, orig_img)
@@ -134,3 +167,5 @@ if __name__ == "__main__":
             publicar_postagem(blogger_client, t_final, c_final)
         except Exception:
             publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
+    else:
+        print("🛑 Nenhuma notícia inédita encontrada nos feeds nas últimas 24 horas. Execução encerrada para evitar duplicidade.")
