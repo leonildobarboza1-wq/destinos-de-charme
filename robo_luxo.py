@@ -89,32 +89,26 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Invocando Gemini 2.5 Flash para montagem do layout final de luxo...")
+    print("🧠 Gerando artigo com Sistema de Discussão Pública (Utterances)...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # 1. Configuração do Bloco WhatsApp
-    msg_whatsapp = f"Olá! Gostei muito da matéria sobre {titulo} no Destinos de Charme e queria deixar meu feedback."
-    url_whatsapp = f"https://api.whatsapp.com/send?phone={SEU_NUMERO_WHATSAPP}&text={urllib.parse.quote(msg_whatsapp)}"
+    # Substitua 'SEU_USUARIO/NOME_DO_REPOSITORIO' pelo seu caminho real no GitHub
+    # Exemplo: 'lucas/meu-blog-luxo'
+    REPO_GITHUB = "SEU_USUARIO/NOME_DO_REPOSITORIO" 
     
-    # 2. Engenharia da Injeção de Widgets (WhatsApp + Facebook Comments)
-    tag_interatividade_html = f"""
+    # Bloco de Código que cria a área de discussão pública
+    tag_discussao_html = f"""
     <br><hr><br>
-    <div style="font-family: Arial, sans-serif; max-width: 100%; margin: 0 auto; box-sizing: border-box;">
-        
-        <div style="text-align: center; padding: 25px; background: #fafafa; border-radius: 12px; border: 1px solid #eaeaea; margin-bottom: 25px;">
-            <p style="font-size: 16px; color: #222; font-weight: bold; margin-bottom: 15px;">Gostou deste artigo? Envie sua opinião ou sugestão direto para nossa redação!</p>
-            <a href="{url_whatsapp}" target="_blank" rel="noopener noreferrer" style="background-color: #25D366; color: white; padding: 12px 30px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block; box-shadow: 0px 4px 10px rgba(37, 211, 102, 0.2); font-size: 15px;">
-                💬 Enviar Feedback por WhatsApp
-            </a>
-        </div>
-        
-        <div id="fb-root"></div>
-        <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js#xfbml=1&version=v15.0"></script>
-        <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #eaeaea;">
-            <h4 style="color: #333; margin-top: 0; margin-bottom: 20px; font-size: 16px; border-left: 4px solid #333; padding-left: 10px;">Área de Debates:</h4>
-            <div class="fb-comments" data-href="https://www.destinosdecharme.com/{titulo.replace("'", "").replace(" ", "-").lower()}" data-width="100%" data-numposts="5"></div>
-        </div>
-        
+    <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+        <h3 style="font-family: 'Georgia', serif; color: #111; text-align: center;">Área de Discussão</h3>
+        <script src="https://utteranc.es/client.js"
+                repo="{REPO_GITHUB}"
+                issue-term="title"
+                label="comentário"
+                theme="github-light"
+                crossorigin="anonymous"
+                async>
+        </script>
     </div>
     """
     
@@ -127,47 +121,16 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     
     prompt = f"""
     Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
-    Sua tarefa é traduzir e transformar a notícia internacional abaixo em um artigo de luxo narrativo.
+    Transforme a notícia abaixo em um artigo de luxo sofisticado.
 
     Dados:
     - Título: {titulo}
     - Conteúdo: {conteudo}
     
-    DIRETRIZES OBRIGATÓRIAS:
-    1. Crie um título poético e refinado 100% em PORTUGUÊS.
-    2. Texto envolvente sem usar clichês como "Destaque Internacional".
-    3. Ao final da matéria em português, insira exatamente este bloco de atribuição de fonte:
-       '<p><i>Fonte original: <a href="{link_original}" target="_blank" rel="noopener noreferrer">Clique aqui para ler a matéria completa no site oficial</a></i></p>'
-    
-    FORMATOS DE MARCAÇÃO PARA PARSER:
-    [TITULO_DO_POST] O título em português gerado por você.
+    FORMATOS DE MARCAÇÃO:
+    [TITULO_DO_POST] O título em português.
     [CORPO_DO_POST] {tag_imagem_html}
-    Insira o seu texto formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e a 'ENGLISH VERSION' completa. No final absoluto de TUDO, anexe este bloco de código: {tag_interatividade_html}
+    Texto HTML, fonte original com target="_blank", <hr>, 'ENGLISH VERSION' e, ao final de tudo, este código: {tag_discussao_html}
     """
     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
     return response.text
-
-def publicar_postagem(blogger_service, titulo, corpo_html):
-    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
-    try:
-        request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
-        request.execute()
-        print("✨ SUCESSO ABSOLUTO: Artigo com Duplo Feedback publicado no Blogger!")
-    except Exception as e:
-        raise e
-
-if __name__ == "__main__":
-    blogger_client = inicializar_client_blogger()
-    titulos_bloqueados = listar_titulos_publicados_24h(blogger_client)
-    orig_titulo, orig_desc, orig_link, orig_img = buscar_noticia_aleatoria(titulos_bloqueados)
-    
-    if orig_titulo:
-        resultado_ia = gerar_conteudo_ia(orig_titulo, orig_desc, orig_link, orig_img)
-        try:
-            t_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
-            c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
-            publicar_postagem(blogger_client, t_final, c_final)
-        except Exception:
-            publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
-    else:
-        print("🛑 Nenhuma matéria inédita nas últimas 24h.")
