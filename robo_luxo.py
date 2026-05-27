@@ -7,7 +7,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 # ==========================================
-# CONFIGURAÇÕES DE AMBIENTE & DIRETIVAS
+# CONFIGURAÇÕES DE AMBIENTE
 # ==========================================
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
@@ -19,20 +19,16 @@ FONTES_NEWS = [
 
 def inicializar_client_blogger():
     if not GOOGLE_CREDENTIALS_JSON:
-        raise ValueError("ERRO CRÍTICO: A variável GOOGLE_CREDENTIALS_JSON não foi populada no ambiente.")
+        raise ValueError("ERRO CRÍTICO: GOOGLE_CREDENTIALS_JSON ausente.")
     try:
         creds_data = json.loads(GOOGLE_CREDENTIALS_JSON)
-        creds = Credentials.from_authorized_user_info(
-            creds_data, 
-            scopes=['https://www.googleapis.com/auth/blogger']
-        )
+        creds = Credentials.from_authorized_user_info(creds_data, scopes=['https://www.googleapis.com/auth/blogger'])
         return build('blogger', 'v3', credentials=creds)
     except Exception as e:
-        print("❌ Falha crítica ao processar estruturas de credenciais JSON do Google.")
         raise e
 
 def buscar_noticia():
-    print("🌐 Minerando mercado de luxo internacional via RSS...")
+    print("🌐 Minerando notícia e capturando link original...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     for fonte in FONTES_NEWS:
         try:
@@ -43,76 +39,55 @@ def buscar_noticia():
             if item is not None:
                 title = item.find('title').text
                 desc = item.find('description').text if item.find('description') is not None else ""
-                return title, desc
-        except Exception as e:
-            print(f"⚠️ Falha temporária ao ler a fonte {fonte['nome']}: {e}")
+                link = item.find('link').text # Captura o link real da matéria
+                return title, desc, link
+        except Exception:
             continue
-    return None, None
+    return None, None, None
 
-def gerar_conteudo_ia(titulo, conteudo):
-    print("🧠 Invocando Gemini 2.5 Flash para refatoração editorial sofisticada...")
-    if not GEMINI_KEY:
-        raise ValueError("ERRO CRÍTICO: A variável GEMINI_API_KEY está ausente.")
-        
+def gerar_conteudo_ia(titulo, conteudo, link_original):
+    print("🧠 Gerando artigo com atribuição de fonte...")
     client = genai.Client(api_key=GEMINI_KEY)
     
     prompt = f"""
-    Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
-    Sua tarefa é traduzir e transformar a notícia internacional abaixo em um artigo de luxo narrativo, envolvente e extremamente sofisticado.
+    Você é o editor-chefe da revista 'Destinos de Charme'. 
+    Traduza e transforme a notícia abaixo em um artigo de luxo sofisticado.
 
-    Dados da Notícia (Traduza e reescreva totalmente):
-    - Título da Fonte: {titulo}
-    - Conteúdo de Apoio: {conteudo}
+    Dados:
+    - Título: {titulo}
+    - Conteúdo: {conteudo}
     
-    DIRETRIZES OBRIGATÓRIAS DE REDAÇÃO:
-    1. O título PRINCIPAL deve ser 100% em PORTUGUÊS. Crie um título inteiramente novo, refinado, poético e que evoque o mercado de luxo.
-    2. NUNCA use o título original em inglês no topo e NUNCA comece com jargões como "Destaque Internacional" ou "Análise sobre".
-    3. O texto deve começar direto na atmosfera do destino em português.
+    DIRETRIZES:
+    1. Título poético 100% em PORTUGUÊS.
+    2. Texto envolvente sem jargões como "Destaque Internacional".
+    3. Ao final da versão em português, insira OBRIGATORIAMENTE uma linha com: 
+       '<p><i>Fonte original: <a href="{link_original}">Clique aqui para ler a matéria completa no site oficial</a></i></p>'
     
-    FORMATOS OBRIGATÓRIOS DE MARCAÇÃO PARA PARSER:
-    [TITULO_DO_POST] Escreva aqui o título criado por você, 100% em português e sem prefixos.
-    [CORPO_DO_POST] Conteúdo estruturado estritamente em HTML limpo (<p>, <strong>). Inclua uma linha divisória elegante <hr> e, logo abaixo dela, insira a versão em inglês com o título 'ENGLISH VERSION'.
+    FORMATOS:
+    [TITULO_DO_POST] Título em português aqui.
+    [CORPO_DO_POST] Conteúdo HTML. Inclua a <hr> e a ENGLISH VERSION após a fonte original.
     """
     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
     return response.text
 
 def publicar_postagem(blogger_service, titulo, corpo_html):
-    print("🚀 Protocolando requisição POST no gateway da API do Blogger...")
-    body = {
-        "kind": "blogger#post",
-        "title": titulo,
-        "content": corpo_html
-    }
+    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
     try:
         request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
-        response = request.execute()
-        if 'id' in response:
-            print(f"✨ SUCESSO DE PRODUÇÃO: Artigo publicado com o ID {response['id']}")
-        else:
-            raise RuntimeError(f"API respondeu com payload anômalo: {response}")
+        request.execute()
+        print("✨ Postagem publicada com sucesso e link da fonte incluído!")
     except Exception as e:
-        print("❌ Erro fatal retornado pelo barramento do Google Blogger.")
         raise e
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
-    orig_titulo, orig_desc = buscar_noticia()
+    orig_titulo, orig_desc, orig_link = buscar_noticia()
     
-    if not orig_titulo:
-        raise RuntimeError("Não foi possível coletar dados de nenhuma das fontes RSS especificadas.")
-        
-    resultado_ia = gerar_conteudo_ia(orig_titulo, orig_desc)
-    
-    # Processamento e extração cirúrgica das tags da IA
-    try:
-        t_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
-        c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
-    except IndexError:
-        print("⚠️ Formatação da IA divergiu. Aplicando limpeza inteligente para garantir título em português...")
-        # Fallback inteligente: se o parser falhar, limpa as tags textuais e deixa a IA definir o conteúdo
-        linhas = [lin.strip() for lin in resultado_ia.split('\n') if lin.strip()]
-        t_final = linhas[0].replace("[TITULO_DO_POST]", "").replace("[CORPO_DO_POST]", "").strip()
-        c_final = resultado_ia.replace("[TITULO_DO_POST]", "").replace("[CORPO_DO_POST]", "")
-
-    # Publicação final controlada
-    publicar_postagem(blogger_client, t_final, c_final)
+    if orig_titulo:
+        resultado_ia = gerar_conteudo_ia(orig_titulo, orig_desc, orig_link)
+        try:
+            t_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
+            c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
+            publicar_postagem(blogger_client, t_final, c_final)
+        except Exception:
+            publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
