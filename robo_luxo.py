@@ -17,6 +17,9 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 BLOG_ID = "2362582861639823192"
 
+# 🔴 COLOQUE SEU E-MAIL REAL AQUI PARA RECEBER OS COMENTÁRIOS DOS LEITORES
+EMAIL_ADMINISTRADOR = "seu-email-aqui@gmail.com"
+
 FONTES_NEWS = [
     {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
     {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
@@ -92,10 +95,6 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     print("🧠 Gerando artigo com Área de Mensagens nativa e exclusiva...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # 🔴 COLOQUE O SEU E-MAIL REAL AQUI PARA RECEBER OS COMENTÁRIOS
-    EMAIL_ADMINISTRADOR = "leonildobarboza2@gmail.com" 
-    
-    # O SEU CÓDIGO DO FORMULÁRIO ENVELOPADO EM DESIGN LUXO FICA AQUI:
     tag_interatividade_html = f"""
     <br><hr><br>
     <div style="background-color: #fafafa; padding: 30px; border-radius: 4px; border: 1px solid #e5e5e5; font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto;">
@@ -160,6 +159,16 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
         except Exception as e:
             if tentativa == 3: raise e
             time.sleep(10)
+
+def publicar_postagem(blogger_service, titulo, corpo_html):
+    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
+    try:
+        request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
+        request.execute()
+        print("✨ SUCESSO: Post publicado no Blogger com área de formulário ativa!")
+    except Exception as e:
+        print(f"❌ Erro ao inserir post no Blogger: {e}")
+        raise e
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
