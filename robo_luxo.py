@@ -120,8 +120,10 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     
     tag_imagem_html = f"""
     <p style="text-align: center;">
-        <img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px;" /><br>
-        <span style="font-size: 11px; color: #888888;">Imagem: Reprodução / Fonte Original</span>
+        <a href="{link_original}" target="_blank" rel="noopener noreferrer" style="display: inline-block; text-decoration: none;">
+            <img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'" /><br>
+            <span style="font-size: 11px; color: #888888; display: block; margin-top: 5px;">Imagem: Reprodução / Clique para ver a fonte original</span>
+        </a>
     </p>
     """ if img_url else ""
     
