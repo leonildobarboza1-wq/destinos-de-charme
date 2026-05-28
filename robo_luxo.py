@@ -89,26 +89,32 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Gerando artigo com Fórum Aberto Avançado (Sem expor GitHub)...")
+    print("🧠 Gerando artigo com Sistema de Comentários Universal (Disqus)...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # Criamos um ID único baseado no título para o sistema de comentários não misturar os posts
+    # Identificador único para a página não misturar comentários de posts diferentes
     post_id_limpo = urllib.parse.quote_plus(titulo[:30])
     
-    # Nova caixinha de comentários limpa, aceita preenchimento fácil e esconde seu usuário
+    # CÓDIGO DO DISQUS: Permite login com Google e oculta o seu GitHub do blog
     tag_discussao_html = f"""
     <br><hr><br>
-    <div style="background: #ffffff; padding: 25px; border-radius: 4px; border: 1px solid #e5e5e5; max-width: 650px; margin: 0 auto; font-family: 'Georgia', serif;">
-        <h3 style="color: #111; text-align: center; font-weight: normal; letter-spacing: 1px; margin-bottom: 25px;">Comentários da Comunidade</h3>
+    <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee; max-width: 700px; margin: 0 auto;">
+        <h3 style="font-family: 'Georgia', serif; color: #111; text-align: center; font-weight: normal; margin-bottom: 20px;">Comentários e Discussão</h3>
         
-        <div id="cusdis_thread"
-          data-host="https://cusdis.com"
-          data-app-id="9fa4fb87-d4fa-4fa1-8fca-2f3b89fa6cb6"
-          data-page-id="{post_id_limpo}"
-          data-page-url=""
-          data-page-title="{titulo.replace("'", "")}">
-        </div>
-        <script async defer src="https://cusdis.com/js/cusdis.es.js"></script>
+        <div id="disqus_thread"></div>
+        <script>
+            var disqus_config = function () {{
+                this.page.url = window.location.href;
+                this.page.identifier = '{post_id_limpo}';
+            }};
+            (function() {{
+                var d = document, s = d.createElement('script');
+                s.src = 'https://destinos-de-charme.disqus.com/embed.js';
+                s.setAttribute('data-timestamp', +new Date());
+                (d.head || d.body).appendChild(s);
+            }})();
+        </script>
+        <noscript>Por favor, ative o JavaScript para visualizar os comentários.</noscript>
     </div>
     """
     
@@ -150,7 +156,7 @@ def publicar_postagem(blogger_service, titulo, corpo_html):
     try:
         request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
         request.execute()
-        print("✨ SUCESSO: Post publicado com o novo fórum aberto!")
+        print("✨ SUCESSO: Post publicado com o Disqus ativo!")
     except Exception as e:
         print(f"❌ Erro ao inserir post no Blogger: {e}")
         raise e
