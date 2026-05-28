@@ -89,24 +89,42 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Gerando artigo com Sistema de Discussão Pública (Utterances)...")
+    print("🧠 Gerando artigo com Área de Mensagens nativa e exclusiva...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # IMPORTANTE: Lembre-se de ajustar para o seu repositório quando puder
-    REPO_GITHUB = "REPO_GITHUB = "leonildobarboza1-wq/destinos-de-charme"" 
+    # 🔴 COLOQUE O SEU E-MAIL REAL AQUI PARA RECEBER OS COMENTÁRIOS
+    EMAIL_ADMINISTRADOR = "leonildobarboza2@gmail.com" 
     
-    tag_discussao_html = f"""
+    # O SEU CÓDIGO DO FORMULÁRIO ENVELOPADO EM DESIGN LUXO FICA AQUI:
+    tag_interatividade_html = f"""
     <br><hr><br>
-    <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
-        <h3 style="font-family: 'Georgia', serif; color: #111; text-align: center;">Área de Discussão</h3>
-        <script src="https://utteranc.es/client.js"
-                repo="{REPO_GITHUB}"
-                issue-term="title"
-                label="comentário"
-                theme="github-light"
-                crossorigin="anonymous"
-                async>
-        </script>
+    <div style="background-color: #fafafa; padding: 30px; border-radius: 4px; border: 1px solid #e5e5e5; font-family: 'Georgia', serif; max-width: 600px; margin: 0 auto;">
+        <h3 style="text-align: center; color: #111; font-weight: normal; letter-spacing: 1px; margin-bottom: 5px;">Deixe sua Mensagem</h3>
+        <p style="text-align: center; font-size: 13px; color: #666; font-style: italic; margin-bottom: 25px;">Compartilhe suas impressões ou sugestões com nossa redação.</p>
+        
+        <form action="https://formsubmit.co/{EMAIL_ADMINISTRADOR}" method="POST" style="display: flex; flex-direction: column; gap: 15px;">
+            <input type="hidden" name="_subject" value="Novo Feedback: {titulo.replace("'", "")}">
+            <input type="hidden" name="_captcha" value="false">
+
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <label style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #333;">Seu Nome</label>
+                <input type="text" name="name" required style="padding: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <label style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #333;">Seu E-mail</label>
+                <input type="email" name="email" required style="padding: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px;">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <label style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #333;">Mensagem</label>
+                <textarea name="mensagem" rows="5" required style="padding: 10px; border: 1px solid #ccc; background: #fff; font-size: 14px; resize: vertical;"></textarea>
+            </div>
+
+            <button type="submit" style="background-color: #111; color: #fff; border: none; padding: 12px; text-transform: uppercase; letter-spacing: 2px; font-size: 13px; cursor: pointer; margin-top: 10px;">
+                Enviar Comentário
+            </button>
+        </form>
     </div>
     """
     
@@ -119,42 +137,29 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     
     prompt = f"""
     Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
-    Transforme a notícia abaixo em um artigo de luxo sofisticado.
+    Sua tarefa é traduzir e transformar a notícia internacional abaixo em um artigo de luxo narrativo.
 
     Dados:
     - Título: {titulo}
     - Conteúdo: {conteudo}
     
     DIRETRIZES OBRIGATÓRIAS:
-    1. Título poético em PORTUGUÊS.
-    2. Fonte original abrindo em nova aba: '<p><i>Fonte original: <a href="{link_original}" target="_blank" rel="noopener noreferrer">Clique aqui para ler a matéria completa</a></i></p>'
+    1. Crie um título poético e refinado 100% em PORTUGUÊS.
+    2. Ao final da matéria em português, insira a atribuição de fonte com target="_blank".
     
-    FORMATOS DE MARCAÇÃO:
-    [TITULO_DO_POST] O título em português.
+    FORMATOS DE MARCAÇÃO PARA PARSER:
+    [TITULO_DO_POST] O título em português gerado por você.
     [CORPO_DO_POST] {tag_imagem_html}
-    Texto HTML, fonte original, <hr>, 'ENGLISH VERSION' e, ao final de tudo, este código exato: {tag_discussao_html}
+    Insira o seu texto formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e a 'ENGLISH VERSION' completa. No final absoluto de TUDO, anexe este bloco de código: {tag_interatividade_html}
     """
     
-    # Sistema Anti-Instabilidade do Google (Tenta até 3 vezes com pausas)
     for tentativa in range(1, 4):
         try:
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             return response.text
         except Exception as e:
-            if tentativa == 3:
-                raise e
-            print(f"⏳ Servidor do Google instável (Tentativa {tentativa}/3). Aguardando 10 segundos para tentar novamente...")
+            if tentativa == 3: raise e
             time.sleep(10)
-
-def publicar_postagem(blogger_service, titulo, corpo_html):
-    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
-    try:
-        request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
-        request.execute()
-        print("✨ SUCESSO: Post publicado no Blogger com área de discussão ativa!")
-    except Exception as e:
-        print(f"❌ Erro ao inserir post no Blogger: {e}")
-        raise e
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
