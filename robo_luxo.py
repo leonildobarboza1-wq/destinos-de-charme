@@ -93,7 +93,7 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     client = genai.Client(api_key=GEMINI_KEY)
     
     # IMPORTANTE: Lembre-se de ajustar para o seu repositório quando puder
-    REPO_GITHUB = "SEU_USUARIO/NOME_DO_REPOSITORIO" 
+    REPO_GITHUB = "REPO_GITHUB = "leonildobarboza1-wq/destinos-de-charme"" 
     
     tag_discussao_html = f"""
     <br><hr><br>
