@@ -16,9 +16,6 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 BLOG_ID = "2362582861639823192"
 
-# Substitua pelo seu número real com DDD e o código do país (ex: 55 para Brasil)
-SEU_NUMERO_WHATSAPP = "5511999999999" 
-
 FONTES_NEWS = [
     {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
     {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
@@ -71,6 +68,7 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 link = item.find('link').text
                 
                 if title.strip().lower() in titulos_bloqueados:
+                    print(f"箱️ Pulando repetida: {title}")
                     continue
                 
                 img_url = ""
@@ -84,7 +82,8 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 
                 print(f"🎯 Selecionada: {title}")
                 return title, desc, link, img_url
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ Erro na leitura do feed: {e}")
             continue
     return None, None, None, None
 
@@ -92,11 +91,10 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     print("🧠 Gerando artigo com Sistema de Discussão Pública (Utterances)...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # Substitua 'SEU_USUARIO/NOME_DO_REPOSITORIO' pelo seu caminho real no GitHub
-    # Exemplo: 'lucas/meu-blog-luxo'
-    REPO_GITHUB = "SEU_USUARIO/NOME_DO_REPOSITORIO" 
+    # IMPORTANTE: Altere aqui para o seu usuário do GitHub e nome do repositório
+    # Exemplo: "lucas/blog-luxo"
+    REPO_GITHUB = "https://github.com/leonildobarboza1-wq/destinos-de-charme" 
     
-    # Bloco de Código que cria a área de discussão pública
     tag_discussao_html = f"""
     <br><hr><br>
     <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
@@ -127,10 +125,41 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     - Título: {titulo}
     - Conteúdo: {conteudo}
     
+    DIRETRIZES OBRIGATÓRIAS:
+    1. Título poético em PORTUGUÊS.
+    2. Fonte original abrindo em nova aba: '<p><i>Fonte original: <a href="{link_original}" target="_blank" rel="noopener noreferrer">Clique aqui para ler a matéria completa</a></i></p>'
+    
     FORMATOS DE MARCAÇÃO:
     [TITULO_DO_POST] O título em português.
     [CORPO_DO_POST] {tag_imagem_html}
-    Texto HTML, fonte original com target="_blank", <hr>, 'ENGLISH VERSION' e, ao final de tudo, este código: {tag_discussao_html}
+    Texto HTML, fonte original, <hr>, 'ENGLISH VERSION' e, ao final de tudo, este código exato: {tag_discussao_html}
     """
     response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
     return response.text
+
+def publicar_postagem(blogger_service, titulo, corpo_html):
+    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
+    try:
+        request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
+        request.execute()
+        print("✨ SUCESSO: Post publicado no Blogger com área de discussão ativa!")
+    except Exception as e:
+        print(f"❌ Erro ao inserir post no Blogger: {e}")
+        raise e
+
+if __name__ == "__main__":
+    blogger_client = inicializar_client_blogger()
+    titulos_bloqueados = listar_titulos_publicados_24h(blogger_client)
+    orig_titulo, orig_desc, orig_link, orig_img = buscar_noticia_aleatoria(titulos_bloqueados)
+    
+    if orig_titulo:
+        resultado_ia = gerar_conteudo_ia(orig_titulo, orig_desc, orig_link, orig_img)
+        try:
+            t_final = resultado_ia.split("[TITULO_DO_POST]")[1].split("[CORPO_DO_POST]")[0].strip()
+            c_final = resultado_ia.split("[CORPO_DO_POST]")[1].strip()
+            publicar_postagem(blogger_client, t_final, c_final)
+        except Exception as e:
+            print(f"⚠️ Falha no parser, postando bruto: {e}")
+            publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
+    else:
+        print("🛑 Nenhuma notícia inédita encontrada nos feeds nas últimas 24 horas.")
