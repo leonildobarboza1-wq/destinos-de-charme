@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import random
 import urllib.parse
 import urllib.request
@@ -68,7 +69,7 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 link = item.find('link').text
                 
                 if title.strip().lower() in titulos_bloqueados:
-                    print(f"箱️ Pulando repetida: {title}")
+                    print(f"⏭️ Pulando repetida: {title}")
                     continue
                 
                 img_url = ""
@@ -91,9 +92,8 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     print("🧠 Gerando artigo com Sistema de Discussão Pública (Utterances)...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # IMPORTANTE: Altere aqui para o seu usuário do GitHub e nome do repositório
-    # Exemplo: "lucas/blog-luxo"
-    REPO_GITHUB = "https://github.com/leonildobarboza1-wq/destinos-de-charme" 
+    # IMPORTANTE: Lembre-se de ajustar para o seu repositório quando puder
+    REPO_GITHUB = "SEU_USUARIO/NOME_DO_REPOSITORIO" 
     
     tag_discussao_html = f"""
     <br><hr><br>
@@ -134,8 +134,17 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     [CORPO_DO_POST] {tag_imagem_html}
     Texto HTML, fonte original, <hr>, 'ENGLISH VERSION' e, ao final de tudo, este código exato: {tag_discussao_html}
     """
-    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-    return response.text
+    
+    # Sistema Anti-Instabilidade do Google (Tenta até 3 vezes com pausas)
+    for tentativa in range(1, 4):
+        try:
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            return response.text
+        except Exception as e:
+            if tentativa == 3:
+                raise e
+            print(f"⏳ Servidor do Google instável (Tentativa {tentativa}/3). Aguardando 10 segundos para tentar novamente...")
+            time.sleep(10)
 
 def publicar_postagem(blogger_service, titulo, corpo_html):
     body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
