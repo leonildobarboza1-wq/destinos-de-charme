@@ -21,8 +21,21 @@ FONTES_NEWS = [
     {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
     {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
     {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"}
-]
 
+    # Condé Nast Traveler (Viagens e Destinos Incríveis)
+    {"nome": "Condé Nast Traveler - Destinos", "url": "https://www.cntraveler.com/feed/travel-tips-and-trends/rss"},
+    {"nome": "Condé Nast Traveler - Hotéis", "url": "https://www.cntraveler.com/feed/hotels/rss"},
+    
+    # Architectural Digest (Mansões, Decoração e Arquitetura)
+    {"nome": "Architectural Digest - Casas", "url": "https://www.architecturaldigest.com/feed/celebrity-style/rss"},
+    
+    # Elite Traveler (O Luxo Puro: Iates, Jatos e Relógios)
+    {"nome": "Elite Traveler - Lifestyle", "url": "https://elitetraveler.com/feed"},
+    
+    # Mantendo a Robb Report para somar volume
+    {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
+    {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"}
+]
 def inicializar_client_blogger():
     if not GOOGLE_CREDENTIALS_JSON:
         raise ValueError("ERRO CRÍTICO: GOOGLE_CREDENTIALS_JSON ausente.")
