@@ -3,7 +3,8 @@ name: Automacao Blogger Luxo
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */6 * * *"
+    # Executa a cada 4 horas (00:00, 04:00, 08:00, etc.)
+    - cron: "0 */4 * * *"
 
 jobs:
   publicar:
@@ -32,12 +33,12 @@ jobs:
           pip install lxml
 
       - name: Executar o Robô de Luxo
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      run: python robo_luxo.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        run: python robo_luxo.py
 
-    # Monitoramento independente via Healthchecks
-    - name: Avisar Monitor Externo que o Robô está vivo
-      if: success() # Só envia o sinal se o robô postar com sucesso
-      run: curl -fsS -m 10 --retry 5 https://hc-ping.com/713c69d8-3ff9-4580-a9c7-eb104b15a6e4
+      # Monitoramento independente via Healthchecks
+      - name: Avisar Monitor Externo que o Robô está vivo
+        if: success() # Só envia o sinal se o robô postar com sucesso
+        run: curl -fsS -m 10 --retry 5 https://hc-ping.com/713c69d8-3ff9-4580-a9c7-eb104b15a6e4
