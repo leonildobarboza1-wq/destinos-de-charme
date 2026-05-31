@@ -119,7 +119,7 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
 def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
     """
     Usa o Gemini para transformar a notícia de turismo em um post de blog de luxo,
-    já injetando os links de afiliados do Booking e as duas opções da Amazon no final.
+    já injetando as duas opções da Amazon no final.
     """
     client = genai.Client()
     
@@ -145,8 +145,7 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
        <p><i>Fonte original em inglês: <a href="{link_original}" target="_blank" rel="noopener">Clique aqui</a></i></p>
        
        <br>
-       <h3>✈️ Planeje Sua Próxima Experiência de Elite</h3>
-       <p><b>Hospedagem de Charme:</b> Encontre os hotéis boutique e resorts mais exclusivos deste destino com tarifas especiais. <a href="https://www.booking.com/index.html?aid=SEU_AID_DO_BOOKING_AQUI" target="_blank" rel="noopener"><b>Clique aqui para reservar sua estadia perfeita no Booking.com</b></a>.</p>
+       <h3>🧳 Essenciais para a Sua Próxima Viagem de Elite</h3>
        
        <p><b>Tecnologia de Ponta:</b> Viaje conectado e registre cada momento com qualidade cinematográfica. <a href="https://www.amazon.com.br/Apple-iPhone-17-Pro-Max/dp/B0FQHGM3B1?pd_rd_w=cODwv&content-id=amzn1.sym.49c30b43-6327-4205-bff7-940d62245e41&pf_rd_p=49c30b43-6327-4205-bff7-940d62245e41&pf_rd_r=3KMK1GRVN60FNDRZ9HPR&pd_rd_wg=MswXb&pd_rd_r=0164f6b9-946a-456f-b5f2-baf11d396763&pd_rd_i=B0FQHGM3B1&th=1&linkCode=ll2&tag=destinosdecha-20&linkId=33320d053a0d9437ccec1d70552e1b05&ref_=as_li_ss_tl" target="_blank" rel="noopener"><b>Adquira o novo iPhone 17 Pro Max na Amazon com frete rápido</b></a>.</p>
        
