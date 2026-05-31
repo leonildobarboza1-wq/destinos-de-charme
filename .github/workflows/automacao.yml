@@ -31,9 +31,13 @@ jobs:
           pip install beautifulsoup4
           pip install lxml
 
-      - name: Executar robo
-        env:
-          GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
-        run: python robo_luxo.py
+      - name: Executar o Robô de Luxo
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      run: python robo_luxo.py
+
+    # Monitoramento independente via Healthchecks
+    - name: Avisar Monitor Externo que o Robô está vivo
+      if: success() # Só envia o sinal se o robô postar com sucesso
+      run: curl -fsS -m 10 --retry 5 https://hc-ping.com/713c69d8-3ff9-4580-a9c7-eb104b15a6e4
