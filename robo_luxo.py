@@ -117,78 +117,56 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
         
     return None, None, None, None
 
-def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
-    print("🧠 Gerando artigo com Sistema de Comentários Universal (Disqus)...")
-    client = genai.Client(api_key=GEMINI_KEY)
-    
-    post_id_limpo = urllib.parse.quote_plus(titulo[:30])
-    
-    tag_discussao_html = f"""
-    <br><hr><br>
-    <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee; max-width: 700px; margin: 0 auto;">
-        <h3 style="font-family: 'Georgia', serif; color: #111; text-align: center; font-weight: normal; margin-bottom: 20px;">Comentários e Discussão</h3>
-        
-        <div id="disqus_thread"></div>
-        <script>
-            var disqus_config = function () {{
-                this.page.url = window.location.href;
-                this.page.identifier = '{post_id_limpo}';
-            }};
-            (function() {{
-                var d = document, s = d.createElement('script');
-                s.src = 'https://destinos-de-charme.disqus.com/embed.js';
-                s.setAttribute('data-timestamp', +new Date());
-                (d.head || d.body).appendChild(s);
-            }})();
-        </script>
-        <noscript>Por favor, ative o JavaScript para visualizar os comentários.</noscript>
-    </div>
+def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
     """
-    
-    tag_imagem_html = f"""
-    <p style="text-align: center;">
-        <a href="{link_original}" target="_blank" rel="noopener noreferrer" style="display: inline-block; text-decoration: none;">
-            <img src="{img_url}" style="max-width: 100%; height: auto; border-radius: 8px; transition: transform 0.3s ease;" onmouseover="this.style.transform='scale(1.01)'" onmouseout="this.style.transform='scale(1)'" /><br>
-            <span style="font-size: 11px; color: #888888; display: block; margin-top: 5px;">Imagem: Reprodução / Clique para ver a fonte original</span>
-        </a>
-    </p>
-    """ if img_url else ""
+    Usa o Gemini para transformar a notícia de turismo em um post de blog de luxo,
+    já injetando os links de afiliados do Booking e da Amazon no final.
+    """
+    client = genai.Client()
     
     prompt = f"""
-    Você é o editor-chefe da revista de alto padrão 'Destinos de Charme'. 
-    Sua tarefa é traduzir e transformar a notícia internacional abaixo em um artigo de luxo narrativo.
+    Você é o editor-chefe da revista digital de alto padrão 'Destinos de Charme'. 
+    Sua tarefa é pegar os dados da notícia internacional abaixo e transformá-la em um artigo de luxo narrativo, envolvente e sofisticado em português.
 
-    Dados:
-    - Título: {titulo}
-    - Conteúdo: {conteudo}
+    Dados da Notícia:
+    - Título Original: {titulo}
+    - Conteúdo original: {conteudo}
     
-    DIRETRIZES OBRIGATÓRIAS:
-    1. Crie um título poético e refinado 100% em PORTUGUÊS.
-    2. Ao final da matéria em português, insira a attribution de fonte com target="_blank".
-    
-    FORMATOS DE MARCAÇÃO PARA PARSER:
-    [TITULO_DO_POST] O título em português gerado por você.
-    [CORPO_DO_POST] {tag_imagem_html}
-    Insira o seu text formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e a 'ENGLISH VERSION' completa. No final absoluto de TUDO, anexe este bloco de código exato: {tag_discussao_html}
+    DIRETRIZES OBRIGATÓRIAS DE FORMATAÇÃO:
+    1. O retorno deve ter EXATAMENTE esta estrutura de tags para o parser funcionar:
+       [TITULO_DO_POST]
+       Coloque aqui um título poético, refinado e chamativo em português (Sem aspas e sem markdown).
+       
+       [CORPO_DO_POST]
+       Escreva o artigo em português com parágrafos bem estruturados e elegantes. Use subtítulos em markdown (###) se achar necessário.
+       
+    2. No final do texto do [CORPO_DO_POST], pule uma linha e adicione as seguintes seções de monetização e créditos exatamente em HTML:
+       
+       <hr>
+       <p><i>Fonte original em inglês: <a href="{link_original}" target="_blank" rel="noopener">Clique aqui</a></i></p>
+       
+       <br>
+       <h3>✈️ Planeje Sua Próxima Experiência de Elite</h3>
+       <p><b>Hospedagem de Charme:</b> Encontre os hotéis boutique e resorts mais exclusivos deste destino com tarifas especiais. <a href="https://www.booking.com/index.html?aid=SEU_AID_DO_BOOKING_AQUI" target="_blank" rel="noopener"><b>Clique aqui para reservar sua estadia perfeita no Booking.com</b></a>.</p>
+       
+       <p><b>Tecnologia & Bagagem:</b> Viaje com o máximo de conforto e capture cada detalhe em altíssima resolução. <a href="https://www.amazon.com.br/Apple-iPhone-17-Pro-Max/dp/B0FQHGM3B1?pd_rd_w=cODwv&content-id=amzn1.sym.49c30b43-6327-4205-bff7-940d62245e41&pf_rd_p=49c30b43-6327-4205-bff7-940d62245e41&pf_rd_r=3KMK1GRVN60FNDRZ9HPR&pd_rd_wg=MswXb&pd_rd_r=0164f6b9-946a-456f-b5f2-baf11d396763&pd_rd_i=B0FQHGM3B1&th=1&linkCode=ll2&tag=destinosdecha-20&linkId=33320d053a0d9437ccec1d70552e1b05&ref_=as_li_ss_tl" target="_blank" rel="noopener"><b>Garanta o novo iPhone Pro Max e itens de viagem premium na Amazon com frete rápido</b></a>.</p>
     """
     
-    for tentativa in range(1, 4):
-        try:
-            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-            return response.text
-        except Exception as e:
-            if tentativa == 3: raise e
-            time.sleep(10)
-
-def publicar_postagem(blogger_service, titulo, corpo_html):
-    body = {"kind": "blogger#post", "title": titulo, "content": corpo_html}
     try:
-        request = blogger_service.posts().insert(blogId=BLOG_ID, body=body)
-        request.execute()
-        print("✨ SUCESSO: Post publicado com o Disqus ativo!")
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        # Se houver imagem, injeta no início do corpo do post
+        texto_gerado = response.text
+        if imagem_url and "[CORPO_DO_POST]" in texto_gerado:
+            tag_imagem = f'<img src="{imagem_url}" style="max-width:100%; height:auto; margin-bottom:20px; border-radius:8px;"><br>\n'
+            texto_gerado = texto_gerado.replace("[CORPO_DO_POST]", f"[CORPO_DO_POST]\n{tag_imagem}")
+            
+        return texto_gerado
     except Exception as e:
-        print(f"❌ Erro ao inserir post no Blogger: {e}")
-        raise e
+        print(f"❌ Erro na API do Gemini: {e}")
+        return f"[TITULO_DO_POST]\nDestino de Elite\n\n[CORPO_DO_POST]\nErro ao gerar conteúdo. Veja a fonte original: {link_original}"
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
