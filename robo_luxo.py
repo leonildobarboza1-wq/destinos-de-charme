@@ -10,7 +10,7 @@ from google import genai
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-# ==========================================
+# =========================================
 # CONFIGURAÇÕES DE AMBIENTE
 # ==========================================
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
