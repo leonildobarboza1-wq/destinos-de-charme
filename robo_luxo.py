@@ -48,15 +48,27 @@ def listar_titulos_publicados_24h(blogger_service):
 
 def buscar_noticia_aleatoria(titulos_bloqueados):
     print("🎲 Iniciando mineração randômica anti-duplicação...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    
+    # Cabeçalho robusto imitando um navegador real para evitar bloqueios de segurança
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5'
+    }
+    
     fontes_aleatorias = list(FONTES_NEWS)
     random.shuffle(fontes_aleatorias)
+    
+    sucesso_leitura = False
     
     for fonte in fontes_aleatorias:
         try:
             req = urllib.request.Request(fonte['url'], headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as response:
-                root = ET.fromstring(response.read())
+            # Timeout estendido e tratamento de erro explícito
+            with urllib.request.urlopen(req, timeout=15) as response:
+                xml_data = response.read()
+                root = ET.fromstring(xml_data)
+                sucesso_leitura = True # Conseguimos ler pelo menos um feed
             
             items = root.findall('.//item')
             if not items:
@@ -68,6 +80,9 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 desc = item.find('description').text if item.find('description') is not None else ""
                 link = item.find('link').text
                 
+                if not title:
+                    continue
+                    
                 if title.strip().lower() in titulos_bloqueados:
                     print(f"⏭️ Pulando repetida: {title}")
                     continue
@@ -84,8 +99,13 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 print(f"🎯 Selecionada: {title}")
                 return title, desc, link, img_url
         except Exception as e:
-            print(f"⚠️ Erro na leitura do feed: {e}")
+            # Print detalhado para você ver no log EXATAMENTE o erro de rede que impediu o acesso
+            print(f"❌ ERRO CRÍTICO na leitura da fonte '{fonte['nome']}': {e}")
             continue
+            
+    if not sucesso_leitura:
+        print("🚨 ALERTA: O script não conseguiu ler NENHUM dos feeds配置. Verifique bloqueios de IP ou SSL.")
+        
     return None, None, None, None
 
 def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
