@@ -17,10 +17,12 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 BLOG_ID = "2362582861639823192"
 
+# Correção aplicada: Lista unificada, sem duplicações e separada por vírgulas corretamente
 FONTES_NEWS = [
-    {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
+    # Robb Report (Motores e Estilo)
     {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
-    {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"}
+    {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"},
+    {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
 
     # Condé Nast Traveler (Viagens e Destinos Incríveis)
     {"nome": "Condé Nast Traveler - Destinos", "url": "https://www.cntraveler.com/feed/travel-tips-and-trends/rss"},
@@ -30,12 +32,9 @@ FONTES_NEWS = [
     {"nome": "Architectural Digest - Casas", "url": "https://www.architecturaldigest.com/feed/celebrity-style/rss"},
     
     # Elite Traveler (O Luxo Puro: Iates, Jatos e Relógios)
-    {"nome": "Elite Traveler - Lifestyle", "url": "https://elitetraveler.com/feed"},
-    
-    # Mantendo a Robb Report para somar volume
-    {"nome": "Robb Report - Travel", "url": "https://robbreport.com/travel/feed/"},
-    {"nome": "Robb Report - Style", "url": "https://robbreport.com/style/fashion/feed/"}
+    {"nome": "Elite Traveler - Lifestyle", "url": "https://elitetraveler.com/feed"}
 ]
+
 def inicializar_client_blogger():
     if not GOOGLE_CREDENTIALS_JSON:
         raise ValueError("ERRO CRÍTICO: GOOGLE_CREDENTIALS_JSON ausente.")
@@ -62,7 +61,6 @@ def listar_titulos_publicados_24h(blogger_service):
 def buscar_noticia_aleatoria(titulos_bloqueados):
     print("🎲 Iniciando mineração randômica anti-duplicação...")
     
-    # Cabeçalho robusto imitando um navegador real para evitar bloqueios de segurança
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/rss+xml, application/xml;q=0.9, */*;q=0.8',
@@ -77,11 +75,10 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
     for fonte in fontes_aleatorias:
         try:
             req = urllib.request.Request(fonte['url'], headers=headers)
-            # Timeout estendido e tratamento de erro explícito
             with urllib.request.urlopen(req, timeout=15) as response:
                 xml_data = response.read()
                 root = ET.fromstring(xml_data)
-                sucesso_leitura = True # Conseguimos ler pelo menos um feed
+                sucesso_leitura = True
             
             items = root.findall('.//item')
             if not items:
@@ -112,12 +109,11 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
                 print(f"🎯 Selecionada: {title}")
                 return title, desc, link, img_url
         except Exception as e:
-            # Print detalhado para você ver no log EXATAMENTE o erro de rede que impediu o acesso
             print(f"❌ ERRO CRÍTICO na leitura da fonte '{fonte['nome']}': {e}")
             continue
             
     if not sucesso_leitura:
-        print("🚨 ALERTA: O script não conseguiu ler NENHUM dos feeds配置. Verifique bloqueios de IP ou SSL.")
+        print("🚨 ALERTA: O script não conseguiu ler NENHUM dos feeds configurados.")
         
     return None, None, None, None
 
@@ -125,10 +121,8 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     print("🧠 Gerando artigo com Sistema de Comentários Universal (Disqus)...")
     client = genai.Client(api_key=GEMINI_KEY)
     
-    # Identificador único para a página não misturar comentários de posts diferentes
     post_id_limpo = urllib.parse.quote_plus(titulo[:30])
     
-    # CÓDIGO DO DISQUS: Permite login com Google e oculta o seu GitHub do blog
     tag_discussao_html = f"""
     <br><hr><br>
     <div style="background: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #eee; max-width: 700px; margin: 0 auto;">
@@ -170,12 +164,12 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, img_url):
     
     DIRETRIZES OBRIGATÓRIAS:
     1. Crie um título poético e refinado 100% em PORTUGUÊS.
-    2. Ao final da matéria em português, insira a atribuição de fonte com target="_blank".
+    2. Ao final da matéria em português, insira a attribution de fonte com target="_blank".
     
     FORMATOS DE MARCAÇÃO PARA PARSER:
     [TITULO_DO_POST] O título em português gerado por você.
     [CORPO_DO_POST] {tag_imagem_html}
-    Insira o seu texto formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e a 'ENGLISH VERSION' completa. No final absoluto de TUDO, anexe este bloco de código exato: {tag_discussao_html}
+    Insira o seu text formatado em HTML (<p>, <strong>), seguido da fonte original com abertura em nova aba, a linha divisória <hr> e a 'ENGLISH VERSION' completa. No final absoluto de TUDO, anexe este bloco de código exato: {tag_discussao_html}
     """
     
     for tentativa in range(1, 4):
