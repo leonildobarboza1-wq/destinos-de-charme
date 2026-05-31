@@ -10,14 +10,13 @@ from google import genai
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-# =========================================
+# ==========================================
 # CONFIGURAÇÕES DE AMBIENTE
 # ==========================================
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 GOOGLE_CREDENTIALS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON")
 BLOG_ID = "2362582861639823192"
 
-# Correção aplicada: Lista unificada, sem duplicações e separada por vírgulas corretamente
 FONTES_NEWS = [
     # Robb Report (Motores e Estilo)
     {"nome": "Robb Report - Gear", "url": "https://robbreport.com/motors/aviation/feed/"},
@@ -120,7 +119,7 @@ def buscar_noticia_aleatoria(titulos_bloqueados):
 def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
     """
     Usa o Gemini para transformar a notícia de turismo em um post de blog de luxo,
-    já injetando os links de afiliados do Booking e da Amazon no final.
+    já injetando os links de afiliados do Booking e as duas opções da Amazon no final.
     """
     client = genai.Client()
     
@@ -149,7 +148,9 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
        <h3>✈️ Planeje Sua Próxima Experiência de Elite</h3>
        <p><b>Hospedagem de Charme:</b> Encontre os hotéis boutique e resorts mais exclusivos deste destino com tarifas especiais. <a href="https://www.booking.com/index.html?aid=SEU_AID_DO_BOOKING_AQUI" target="_blank" rel="noopener"><b>Clique aqui para reservar sua estadia perfeita no Booking.com</b></a>.</p>
        
-       <p><b>Tecnologia & Bagagem:</b> Viaje com o máximo de conforto e capture cada detalhe em altíssima resolução. <a href="https://www.amazon.com.br/Apple-iPhone-17-Pro-Max/dp/B0FQHGM3B1?pd_rd_w=cODwv&content-id=amzn1.sym.49c30b43-6327-4205-bff7-940d62245e41&pf_rd_p=49c30b43-6327-4205-bff7-940d62245e41&pf_rd_r=3KMK1GRVN60FNDRZ9HPR&pd_rd_wg=MswXb&pd_rd_r=0164f6b9-946a-456f-b5f2-baf11d396763&pd_rd_i=B0FQHGM3B1&th=1&linkCode=ll2&tag=destinosdecha-20&linkId=33320d053a0d9437ccec1d70552e1b05&ref_=as_li_ss_tl" target="_blank" rel="noopener"><b>Garanta o novo iPhone Pro Max e itens de viagem premium na Amazon com frete rápido</b></a>.</p>
+       <p><b>Tecnologia de Ponta:</b> Viaje conectado e registre cada momento com qualidade cinematográfica. <a href="https://www.amazon.com.br/Apple-iPhone-17-Pro-Max/dp/B0FQHGM3B1?pd_rd_w=cODwv&content-id=amzn1.sym.49c30b43-6327-4205-bff7-940d62245e41&pf_rd_p=49c30b43-6327-4205-bff7-940d62245e41&pf_rd_r=3KMK1GRVN60FNDRZ9HPR&pd_rd_wg=MswXb&pd_rd_r=0164f6b9-946a-456f-b5f2-baf11d396763&pd_rd_i=B0FQHGM3B1&th=1&linkCode=ll2&tag=destinosdecha-20&linkId=33320d053a0d9437ccec1d70552e1b05&ref_=as_li_ss_tl" target="_blank" rel="noopener"><b>Adquira o novo iPhone 17 Pro Max na Amazon com frete rápido</b></a>.</p>
+       
+       <p><b>Malas & Bagagem de Elite:</b> Viaje com máxima elegância, segurança e o conforto de acessórios premium. <a href="https://www.amazon.com.br/s?k=malas+de+viagem+samsonite&tag=destinosdecha-20" target="_blank" rel="noopener"><b>Confira as melhores malas de bordo e organizadores sofisticados na Amazon</b></a>.</p>
     """
     
     try:
@@ -157,7 +158,6 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
             model='gemini-2.5-flash',
             contents=prompt,
         )
-        # Se houver imagem, injeta no início do corpo do post
         texto_gerado = response.text
         if imagem_url and "[CORPO_DO_POST]" in texto_gerado:
             tag_imagem = f'<img src="{imagem_url}" style="max-width:100%; height:auto; margin-bottom:20px; border-radius:8px;"><br>\n'
@@ -167,6 +167,27 @@ def gerar_conteudo_ia(titulo, conteudo, link_original, imagem_url):
     except Exception as e:
         print(f"❌ Erro na API do Gemini: {e}")
         return f"[TITULO_DO_POST]\nDestino de Elite\n\n[CORPO_DO_POST]\nErro ao gerar conteúdo. Veja a fonte original: {link_original}"
+
+def publicar_postagem(client, titulo, conteudo):
+    """
+    Publica o artigo final gerado pela IA diretamente no Blogger.
+    """
+    try:
+        if not BLOG_ID:
+            print("❌ Erro: BLOG_ID não configurado.")
+            return
+
+        post_body = {
+            "kind": "blogger#post",
+            "title": titulo,
+            "content": conteudo
+        }
+        
+        request = client.posts().insert(blogId=BLOG_ID, body=post_body)
+        response = request.execute()
+        print(f"🎉 Postagem publicada com sucesso! URL: {response.get('url')}")
+    except Exception as e:
+        print(f"❌ Erro ao publicar no Blogger: {e}")
 
 if __name__ == "__main__":
     blogger_client = inicializar_client_blogger()
@@ -184,6 +205,5 @@ if __name__ == "__main__":
             publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
     else:
         print("🛑 ATENÇÃO: Varredura completa. Nenhuma notícia inédita encontrada em NENHUMA das fontes nas últimas 24h.")
-        # Isso força o erro no GitHub Actions se varrer todos os sites e não postar nada
         import sys
         sys.exit("Erro: O site passou 24 horas sem novas postagens automáticas.")
