@@ -205,4 +205,7 @@ if __name__ == "__main__":
             print(f"⚠️ Falha no parser, postando bruto: {e}")
             publicar_postagem(blogger_client, "Destino de Elite", resultado_ia)
     else:
-        print("🛑 Nenhuma notícia inédita encontrada nos feeds nas últimas 24 horas.")
+        print("🛑 ATENÇÃO: Varredura completa. Nenhuma notícia inédita encontrada em NENHUMA das fontes nas últimas 24h.")
+        # Isso força o erro no GitHub Actions se varrer todos os sites e não postar nada
+        import sys
+        sys.exit("Erro: O site passou 24 horas sem novas postagens automáticas.")
